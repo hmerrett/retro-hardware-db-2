@@ -1,43 +1,45 @@
-# Retro Hardware Database — web stack
+# Retro Hardware Database
 
-The online successor to the flat-file (CSV + `add.py`) system: a MariaDB backend,
-a FastAPI REST API (single source of truth for scripts, an MCP wrapper, and the
-GUI), and a small server-rendered web GUI for day-to-day editing. Runs under
-`docker-compose`.
+A catalogue of retro PCs and the parts they are built from. It runs under Docker
+Compose and has four services:
 
 ```
-docker-compose
-├── caddy  reverse proxy + auto HTTPS   (:80 -> :443, https://db.2600.me)
-│          └── Let's Encrypt cert, proxies to api
-├── db     MariaDB 11                    (data volume: dbdata)
-├── api    FastAPI + uvicorn             (127.0.0.1:8000, public via caddy)
-│          ├── /            web GUI — public read-only; login to edit
-│          ├── /api/...     JSON REST API  (login required)
-│          ├── /images/...  uploaded photos (images volume)
-│          └── /docs        interactive OpenAPI docs (login required)
-└── mcp    MCP server                    (127.0.0.1:8001/mcp)
-           └── native list/get/create/update/delete tools over the REST API
+docker compose
+├── caddy  reverse proxy, auto HTTPS   (:80 and :443, https://db.2600.me)
+│          proxies to api, Let's Encrypt certificate
+├── db     MariaDB 11                   (volume: dbdata)
+├── api    FastAPI + uvicorn            (127.0.0.1:8000, public via caddy)
+│          /            web GUI (public read-only, login to edit)
+│          /api/...     JSON REST API (login required)
+│          /images/...  uploaded photos (volume: images)
+│          /docs        OpenAPI docs (login required)
+└── mcp    MCP server                   (127.0.0.1:8001/mcp)
+           list/get/create/update/delete tools over the REST API
 ```
 
-Public visitors browse the gallery and item pages read-only at
-**https://db.2600.me**; editing, uploads, the JSON API and `/docs` require the
-HTTP Basic login. Only Caddy (80/443) is internet-facing; the app and MCP bind
-to localhost and are reached through the proxy or on the box.
+Anyone can browse the gallery and item pages at https://db.2600.me without
+logging in. Editing, photo upload, the JSON API and the docs need an HTTP Basic
+login. Only Caddy is exposed to the internet, on ports 80 and 443; the API and
+MCP server listen on localhost and are reached through the proxy or on the host.
 
-Data model mirrors the CSV world: one shared asset register (`RH-0001`…) across
-two tables — `computers` and `parts` — where a part's `computer_id` softly links
-it to a computer (blank = standalone). CPU, RAM and floppy/optical/CF-SD drives
-are computer attributes; mechanical hard disks, tape and expansion cards are parts.
+## Data model
 
-A part's specifications are stored **relationally**, not as one text field:
-typed tables per part type (`motherboard_spec`, `cpu_spec`, `ram_spec`,
-`video_spec`, `sound_spec`, `network_spec`, `io_spec`, `storage_spec`), child
-tables for the list-shaped fields (`part_slot`, `part_ram_slot`, `part_port`)
-and `part_attribute` key/value rows for free-form types. `parts.specs` is kept
-as a denormalised `Key: value | …` cache, canonicalised and re-projected into
-those tables on every write (`app/specstruct.py` + `sync_part_specs`) — so you
-can query e.g. every board with a VLB slot, while the string stays available for
-search and labels.
+Two tables share a single asset register (RH-0001, RH-0002, and so on).
+`computers` holds each machine and `parts` holds each component. A part's
+`computer_id` points at the computer it is installed in, or is blank for a
+standalone spare. A computer carries its CPU, installed RAM and
+floppy/optical/CF-SD drives as attributes of the machine; mechanical hard disks,
+tape and expansion cards are parts.
+
+Part specifications are stored in dedicated tables rather than a single field.
+Each part type has a table of typed columns: `motherboard_spec`, `cpu_spec`,
+`ram_spec`, `video_spec`, `sound_spec`, `network_spec`, `io_spec` and
+`storage_spec`. Fields that are naturally lists have child tables (`part_slot`,
+`part_ram_slot`, `part_port`), and free-form types use `part_attribute`
+key/value rows. This keeps specifications queryable, for example finding every
+board with a VLB slot. The `parts.specs` text column holds a `Key: value | ...`
+rendering of the same data, refreshed on every write (see `app/specstruct.py`
+and `sync_part_specs`), and drives the search index and label text.
 
 ## Quick start
 
@@ -46,125 +48,115 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Set the DB passwords in `.env`; optionally `RHDB_AUTH_USER` / `RHDB_AUTH_PASSWORD`
-(HTTP Basic login) and `RHDB_BASE_URL` (the hostname labels/QR encode). On the
-box the GUI is at http://localhost:8000 and docs at `/docs`; publicly it's served
-over HTTPS by Caddy — see **Auth + HTTPS**.
+Set the database passwords in `.env`. Optionally set `RHDB_AUTH_USER` and
+`RHDB_AUTH_PASSWORD` for the login, and `RHDB_BASE_URL` for the hostname the
+labels encode. On the host the GUI is at http://localhost:8000 and the docs at
+`/docs`. In production Caddy serves it over HTTPS; see Access and HTTPS below.
 
-## Seed from the existing CSVs
+## Import from CSV
 
-One-off (re-runnable) import that preserves asset ids. Point it at the flat-file
-repo's `data/` folder. Run it against the running DB:
+`tools/migrate_csv.py` loads `computers.csv` and `parts.csv` into the database,
+preserving asset ids. It upserts by asset id, so it is safe to run repeatedly.
+Run it inside the api container, or against the database with `DATABASE_URL`:
 
 ```
-docker compose exec api python -c "import sys"   # (api is up)
 DATABASE_URL=mysql+pymysql://retro:PASS@localhost:3306/retro \
-    python tools/migrate_csv.py --data ../retro-hardware-database/data
+    python tools/migrate_csv.py --data /path/to/data
 ```
 
-or run the migration inside the container after copying the CSVs in. Because it
-upserts by asset id, you can keep adding data in the CSV system and re-import at
-cutover without duplicates.
-
-## API sketch
+## REST API
 
 | Method | Path | |
 |---|---|---|
-| GET/POST | `/api/computers`, `/api/parts` | list / create (server assigns the next asset id) |
-| GET/PATCH/DELETE | `/api/computers/{id}`, `/api/parts/{id}` | fetch / partial-update / delete |
+| GET, POST | `/api/computers`, `/api/parts` | list, or create (server assigns the next asset id) |
+| GET, PATCH, DELETE | `/api/computers/{id}`, `/api/parts/{id}` | fetch, partial update, delete |
 
-`GET /api/parts?computer_id=RH-0010` and `?type=sound` filter. PATCH only changes
-the fields you send. Full schema + try-it-out at `/docs`.
+`GET /api/parts?computer_id=RH-0010` and `?type=sound` filter the list. PATCH
+changes only the fields you send. The full schema and an interactive console are
+at `/docs`.
 
 ## MCP server
 
-The `mcp` service (in `mcp/`) is a thin wrapper over the REST API that exposes
-native tools over the Model Context Protocol:
+The `mcp` service wraps the REST API and exposes tools over the Model Context
+Protocol:
 
 - `list_computers`, `get_computer`, `create_computer`, `update_computer`, `delete_computer`
-- `list_parts` (filter by `computer_id` / `type`), `get_part`, `create_part`, `update_part`, `delete_part`
+- `list_parts` (filter by `computer_id` or `type`), `get_part`, `create_part`, `update_part`, `delete_part`
 
-It holds no data of its own — every call is an HTTP request to `api`, so the MCP
-server, the GUI and the ported scripts all read/write the same database. It
-speaks the streamable-HTTP transport on `:8001` and comes up with the stack.
-
-Point any MCP client at the endpoint. A project-scoped `.mcp.json` is committed
-at the repo root, and the HTTP URL is:
+It stores nothing of its own; every call is an HTTP request to the API, so the
+MCP server, the GUI and the command-line tools all work against the same
+database. It uses the streamable-HTTP transport on port 8001 and starts with the
+stack. Point an MCP client at the endpoint; a project `.mcp.json` is committed at
+the repo root, and the URL is:
 
 ```
 http://localhost:8001/mcp
 ```
 
-From another machine, swap `localhost` for the host. `create_*` assigns the next
-asset id; `update_*` only changes the fields you pass.
+`create_*` assigns the next asset id; `update_*` changes only the fields you pass.
 
-## Ported utilities (`tools/`)
+## Command-line tools (`tools/`)
 
-The flat-file scripts, re-pointed at the REST API instead of the CSVs. They read
-(and, for the importer, write) over the network, so they can run on whichever
-box has the hardware — e.g. the machine with the DYMO printers and the floppy
-reader — against the API on the LAN. Shared data access + config live in
-`tools/rhdb.py`; `tools/config.yml` carries the (non-secret) base URL, label and
-printer settings.
+These talk to the REST API over the network, so they can run on whichever
+machine has the hardware attached (for example the one with the DYMO printers
+and the floppy reader). Shared access and configuration live in `tools/rhdb.py`
+and `tools/config.yml` (base URL, label sizes, printer names; nothing secret).
 
 ```
 cd tools
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-export RHDB_API=http://192.168.1.2:8000        # or pass --api / edit config.yml
+export RHDB_API=http://localhost:8000
 ```
 
-- **`build_site.py`** — renders the public static site into `tools/site/` (one
-  `items/<asset_id>/` page each, so QR codes already printed keep resolving).
-  Photos are pulled from the API's image store over HTTP by default (set a local
-  dir via `RHDB_IMAGES` / `--images` to build from files instead).
-- **`make_labels.py`** — print-ready label PDFs with a QR to the item's page;
-  `--small`, `--auto` (computers → full+small, real parts → small), `--print`
-  (macOS/CUPS `lp`). QR encodes `<base_url>/items/<asset_id>/`, which the app
-  resolves to the right computer/part page (`base_url` defaults to
-  `https://db.2600.me`; the GUI also renders labels for download).
-- **`import_report.py`** — reads an HWiNFO/MSD boot-disk report from
-  `tools/imports/<asset_id>.txt` and proposes CPU/OS (computer), BIOS/chipset/
-  onboard-video/ports (its motherboard) and one storage part per detected drive.
-  Nothing is written until you confirm; on confirm it PATCHes/POSTs the API.
+- `build_site.py` builds a static copy of the catalogue into `tools/site/`, one
+  page per item at `items/<asset_id>/`. Photos come from the API over HTTP by
+  default; point it at a local directory with `RHDB_IMAGES` or `--images` to
+  build from files.
+- `make_labels.py` produces label PDFs with a QR code for each item. Options:
+  `--small`, `--auto` (a full and small label for a computer, a small label for a
+  real part), and `--print` (macOS/CUPS `lp`). The QR encodes
+  `<base_url>/items/<asset_id>/`, which the app resolves to the right computer or
+  part page; `base_url` defaults to https://db.2600.me. The GUI also renders
+  labels for download.
+- `import_report.py` reads an HWiNFO or MSD boot-disk report from
+  `tools/imports/<asset_id>.txt` and proposes updates: CPU and OS on the
+  computer, BIOS, chipset, onboard video and ports on its motherboard, and a
+  storage part per detected drive. It writes nothing until you confirm.
 
-### Publishing to GitHub Pages
+### Publishing a static site
 
-`tools/publish.sh` builds the site from the API and pushes it into the old
-`retro-hardware-database` repo (checked out alongside this one), whose Action now
-just **deploys the committed `site/`** — its CSV build step is retired. The API
-is LAN-only, so the build has to run on a LAN box rather than in GitHub's CI. The
-Pages URL and `/items/<asset_id>/` paths are unchanged, so QR labels already in
-the wild keep resolving.
+`tools/publish.sh` builds the catalogue from the API and pushes it to a GitHub
+Pages repository checked out alongside this one, whose workflow deploys the
+committed `site/` folder. The build runs locally because the API is not
+reachable from GitHub's runners.
 
 ```
-cd tools
-RHDB_API=http://192.168.1.2:8000 ./publish.sh            # build + push + deploy
-RHDB_SITE_REPO=/path/to/retro-hardware-database ./publish.sh   # if not adjacent
+RHDB_API=http://localhost:8000 ./publish.sh
+RHDB_SITE_REPO=/path/to/pages-repo ./publish.sh   (if not adjacent)
 ```
 
-## Auth + HTTPS
+## Access and HTTPS
 
-Reads are public, writes require a login. Anonymous visitors get read-only
-`GET`s (gallery, item pages, photos, static assets); the new/edit forms, label
-PDFs, every write (`POST`/`PATCH`/`DELETE`), the JSON API and `/docs` require
-HTTP Basic auth, set via `RHDB_AUTH_USER` / `RHDB_AUTH_PASSWORD` in `.env`
-(leave blank to disable auth entirely for local dev). The MCP server and the
-`tools/` scripts read the same two variables (scripts also accept
-`auth_user`/`auth_password` in `tools/config.yml`) and send them automatically.
-Editing controls only render once logged in.
+Reads are public; writes need a login. Anonymous requests may GET the gallery,
+item pages, photos and static assets. The new and edit forms, label PDFs, all
+writes (POST, PATCH, DELETE), the JSON API and `/docs` require HTTP Basic auth,
+configured with `RHDB_AUTH_USER` and `RHDB_AUTH_PASSWORD` in `.env`. Leave both
+blank to run without auth for local development. The MCP server and the
+command-line tools read the same two variables (the tools also accept
+`auth_user` and `auth_password` in `tools/config.yml`) and send them
+automatically. Editing controls appear only when logged in.
 
-HTTPS is terminated by the `caddy` service, which obtains and auto-renews a
-Let's Encrypt certificate for the hostname in `caddy/Caddyfile` (`db.2600.me`)
-and reverse-proxies to the app. To use a different hostname, edit the Caddyfile
-and restart caddy; DNS must point at this host and ports 80/443 must be
-reachable for the ACME challenge.
+The `caddy` service terminates HTTPS. It obtains and renews a Let's Encrypt
+certificate for the hostname in `caddy/Caddyfile` (`db.2600.me`) and proxies to
+the app. To use a different hostname, edit the Caddyfile and restart Caddy; DNS
+must point at the host and ports 80 and 443 must be reachable for the ACME
+challenge.
 
 ## Migrations
 
-Alembic owns the schema. On start the api runs `alembic upgrade head`
-(`api/entrypoint.sh`) — creating the tables on a fresh DB, or stamping a
-pre-Alembic DB to the baseline first so nothing is recreated. To change the
-schema: edit `api/app/models.py`, then
+Alembic manages the schema, and the api runs `alembic upgrade head` on start
+(see `api/entrypoint.sh`). To change the schema, edit `api/app/models.py` and
+then:
 
 ```
 docker compose exec api alembic revision --autogenerate -m "describe change"
@@ -173,19 +165,19 @@ docker compose exec api alembic upgrade head
 
 ## Backups
 
-The data lives in two docker volumes: `dbdata` (the database) and `images` (the
-photos). `tools/backup.sh` writes a timestamped DB dump + photo archive into
-`./backups` (override with `RHDB_BACKUP_DIR`):
+The data lives in two Docker volumes: `dbdata` (the database) and `images` (the
+photos). `tools/backup.sh` writes a timestamped database dump and photo archive
+to `./backups` (override with `RHDB_BACKUP_DIR`):
 
 ```
 tools/backup.sh
 ```
 
 It dumps the database with `mariadb-dump` and tars the photos; restore
-instructions are in the script header. Copy `backups/` off-box (e.g. `scp`) for
-an off-site copy.
+instructions are in the script header. Copy `backups/` off the host for an
+off-site copy.
 
-## Local dev without Docker/MariaDB
+## Local development
 
 The app falls back to SQLite if you set `DATABASE_URL`:
 
@@ -193,21 +185,3 @@ The app falls back to SQLite if you set `DATABASE_URL`:
 cd api && pip install -r requirements.txt
 DATABASE_URL=sqlite:///dev.db uvicorn app.main:app --reload
 ```
-
-## Status
-
-Everything is in place:
-
-- **Database + REST API** (MariaDB, FastAPI, OpenAPI at `/docs`) with a
-  re-runnable CSV importer, and **relational spec tables** normalised out of the
-  old delimited `specs` field.
-- **MCP server** exposing the CRUD tools over the Model Context Protocol.
-- **Ported utilities** — `build_site` (static site), `make_labels` (DYMO PDFs),
-  `import_report` (HWiNFO/MSD) — all API-driven; `publish.sh` deploys the public
-  site, and new label QR codes resolve on `db.2600.me`.
-- **Bespoke GUI** — searchable thumbnail gallery, guided build walk, storage-kind
-  routing, typed entry with the old quick-entry vocabularies, photo upload with a
-  click-to-enlarge lightbox, label download, disposed toggle.
-- **Ops** — Alembic migrations (applied on start), `backup.sh`, HTTPS via Caddy
-  with a Let's Encrypt cert, and public read-only browsing with HTTP Basic login
-  required to edit.
