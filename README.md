@@ -106,8 +106,22 @@ export RHDB_API=http://192.168.1.2:8000        # or pass --api / edit config.yml
   onboard-video/ports (its motherboard) and one storage part per detected drive.
   Nothing is written until you confirm; on confirm it PATCHes/POSTs the API.
 
-Publishing `tools/site/` to GitHub Pages is a separate step — the API is
-LAN-only, so the build runs locally rather than in GitHub's CI.
+### Publishing to GitHub Pages
+
+`tools/publish.sh` builds the site from the API and pushes it into the old
+`retro-hardware-database` repo (checked out alongside this one), whose Action now
+just **deploys the committed `site/`** — its CSV build step is retired. The API
+is LAN-only, so the build has to run on a LAN box rather than in GitHub's CI. The
+Pages URL and `/items/<asset_id>/` paths are unchanged, so QR labels already in
+the wild keep resolving.
+
+```
+cd tools
+RHDB_API=http://192.168.1.2:8000 ./publish.sh            # build + push + deploy
+RHDB_SITE_REPO=/path/to/retro-hardware-database ./publish.sh   # if not adjacent
+```
+
+## Local dev without Docker/MariaDB
 
 ## Local dev without Docker/MariaDB
 
