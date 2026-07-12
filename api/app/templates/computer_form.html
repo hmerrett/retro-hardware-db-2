@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Retro Hardware Database{% endblock %}
+{% block content %}
+<p><a href="javascript:history.back()">&larr; back</a></p>
+<h2>{{ title }}</h2>
+<form class="edit" method="post" action="{{ ('/computers/' + c.asset_id + '/edit') if c else '/computers/new' }}">
+  {% macro fld(key, label, hint='') %}
+    <label for="{{ key }}">{{ label }}</label>
+    <input id="{{ key }}" name="{{ key }}" value="{{ (c[key] if c else '') or '' }}">
+    {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+  {% endmacro %}
+  {{ fld('name', 'Name', "display name; overrides manufacturer + model") }}
+  {{ fld('manufacturer', 'Manufacturer', "or 'Custom build'") }}
+  {{ fld('model', 'Model') }}
+  {{ fld('year', 'Year') }}
+  {{ fld('chassis', 'Chassis / case', "desktop, tower, mini-tower, breadbin…") }}
+  {{ fld('os', 'Operating system') }}
+  {{ fld('cpu', 'CPU', "an attribute, not a part — e.g. Intel 486DX2-66, or 2x Pentium III 500") }}
+  {{ fld('installed_ram', 'Installed RAM', "quick entry: 8x1MB 30-pin computes the total; or just 16MB") }}
+  {{ fld('drives', 'Drives', "floppy / optical / CF-SD only; separate with ; — e.g. 3.5in 1.44MB floppy; CD-ROM. (Hard disks/tape are storage parts.)") }}
+  <label for="condition">Condition</label>
+  <select id="condition" name="condition">
+    {% set cur = (c.condition if c else '') or 'Working' %}
+    {% for opt in conditions %}<option value="{{ opt }}"{{ ' selected' if opt == cur else '' }}>{{ opt }}</option>{% endfor %}
+  </select>
+  {{ fld('source', 'Source', "where / how acquired") }}
+  {{ fld('acquired_date', 'Acquired date', "YYYY-MM-DD") }}
+  {{ fld('url', 'Reference URL', "Wikipedia, The Retro Web, …") }}
+  <label for="notes">Notes</label>
+  <textarea id="notes" name="notes">{{ (c.notes if c else '') or '' }}</textarea>
+  <p style="margin-top:16px"><button class="btn primary" type="submit">Save</button></p>
+</form>
+{% endblock %}

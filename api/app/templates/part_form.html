@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Retro Hardware Database{% endblock %}
+{% block content %}
+<p><a href="javascript:history.back()">&larr; back</a></p>
+<h2>{{ title }}</h2>
+
+{% macro sf(name, key, label, hint='', listid='') %}
+  <label for="{{ name }}">{{ label }}</label>
+  <input id="{{ name }}" name="{{ name }}" value="{{ spec_keys.get(key, '') }}"{% if listid %} list="{{ listid }}"{% endif %}>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+{% endmacro %}
+
+<datalist id="dl_form_factors">{% for o in vocab.form_factors %}<option value="{{ o }}">{% endfor %}</datalist>
+<datalist id="dl_cpu_families">{% for o in vocab.cpu_families %}<option value="{{ o }}">{% endfor %}</datalist>
+<datalist id="dl_card_ifaces">{% for o in vocab.card_interfaces %}<option value="{{ o }}">{% endfor %}</datalist>
+<datalist id="dl_video_conn">{% for o in vocab.video_connectors %}<option value="{{ o }}">{% endfor %}</datalist>
+<datalist id="dl_storage_ifaces">{% for o in vocab.storage_interfaces %}<option value="{{ o }}">{% endfor %}</datalist>
+<datalist id="dl_storage_proto">{% for o in vocab.storage_protocols %}<option value="{{ o }}">{% endfor %}</datalist>
+
+<form class="edit" method="post" action="{{ ('/parts/' + p.asset_id + '/edit') if p else '/parts/new' }}">
+  <input type="hidden" name="computer_id" value="{{ computer_id }}">
+  <input type="hidden" name="_existing_specs" value="{{ p.specs if p else '' }}">
+
+  <fieldset>
+    <legend>Type {% if computer_id %}· for {{ computer_id }}{% endif %}</legend>
+    <select name="type" id="ptype">
+      {% for t in type_order %}<option value="{{ t }}"{{ ' selected' if t == ptype else '' }}>{{ type_labels.get(t, t) }}</option>{% endfor %}
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Identity</legend>
+    <label for="manufacturer">Manufacturer</label>
+    <input id="manufacturer" name="manufacturer" value="{{ (p.manufacturer if p else '') or '' }}">
+    <label for="model">Model</label>
+    <input id="model" name="model" value="{{ (p.model if p else '') or '' }}">
+    <label for="name">Name <span class="muted">(optional; defaults to maker + model)</span></label>
+    <input id="name" name="name" value="{{ (p.name if p else '') or '' }}">
+    <label for="year">Year</label>
+    <input id="year" name="year" value="{{ (p.year if p else '') or '' }}">
+  </fieldset>
+
+  <!-- Storage: kind first; floppy/optical/SD-CF route to the computer's drives -->
+  {% if ptype == 'storage' %}
+  <fieldset id="fs-storage">
+    <legend>Storage</legend>
+    <label for="kind">Kind</label>
+    <select id="kind" name="kind">
+      {% set curkind = spec_keys.get('Kind', '') %}
+      {% for o in vocab.storage_kinds %}<option value="{{ o }}"{{ ' selected' if o == curkind else '' }}>{{ o }}</option>{% endfor %}
+    </select>
+    <div id="drive-route" style="display:none">
+      <label for="drive_desc">Drive description <span class="muted">(goes on the computer's Drives field, not a part)</span></label>
+      <input id="drive_desc" name="drive_desc" placeholder="e.g. 3.5in 1.44MB floppy; Sony CDU55">
+    </div>
+    <div id="drive-part">
+      {{ sf('spec_interface', 'Interface', 'Interface', '', 'dl_storage_ifaces') }}
+      {{ sf('spec_protocol', 'Protocol', 'Protocol', '', 'dl_storage_proto') }}
+      {{ sf('spec_capacity', 'Capacity', 'Capacity', 'e.g. 540 MB') }}
+      {{ sf('spec_chs', 'CHS', 'CHS geometry', 'cylinders/heads/sectors, e.g. 1024/16/63') }}
+      {{ sf('spec_media', 'Media', 'Media') }}
+      {{ sf('spec_speed', 'Speed', 'Speed') }}
+      {{ sf('spec_role', 'Role', 'Role') }}
+      <label for="disk_image">Disk image filename <span class="muted">(image taken on arrival)</span></label>
+      <input id="disk_image" name="disk_image" value="{{ (p.disk_image if p else '') or '' }}">
+    </div>
+  </fieldset>
+
+  {% elif ptype == 'motherboard' %}
+  <fieldset>
+    <legend>Motherboard</legend>
+    {{ sf('spec_chipset', 'Chipset', 'Chipset', 'e.g. Intel 430FX, OPTi 495') }}
+    {{ sf('spec_cpu_family', 'CPU family', 'CPU family', 'comma-separate several', 'dl_cpu_families') }}
+    {{ sf('spec_form_factor', 'Form factor', 'Form factor', "the computer's form factor is taken from here", 'dl_form_factors') }}
+    {{ sf('spec_ram_slots', 'RAM slots', 'RAM slots', 'e.g. 4x 72-pin SIMM') }}
+    {{ sf('spec_slots', 'Slots', 'Expansion slots', "quick entry: 8I:2 16I:6 VLB:1 PCI:3") }}
+    {{ sf('spec_cache', 'Cache', 'Cache', 'e.g. 256 KB, COAST socket') }}
+    {{ sf('spec_bios', 'BIOS', 'BIOS', 'e.g. AMI 1992, Award 4.51') }}
+    {{ sf('spec_onboard_video', 'Onboard video', 'Onboard video', 'e.g. VGA, or VGA C&T 65545') }}
+    {{ sf('spec_ports', 'Ports', 'Onboard I/O ports', 'letters — ' + port_legend + ' (e.g. IFSKO)') }}
+  </fieldset>
+
+  {% elif ptype == 'cpu' %}
+  <fieldset>
+    <legend>CPU</legend>
+    {{ sf('spec_socket', 'Socket', 'Socket') }}
+    {{ sf('spec_speed', 'Speed', 'Speed') }}
+    {{ sf('spec_fsb', 'FSB', 'FSB') }}
+    {{ sf('spec_cores', 'Cores', 'Cores') }}
+    {{ sf('spec_cache', 'Cache', 'Cache') }}
+  </fieldset>
+
+  {% elif ptype == 'ram' %}
+  <fieldset>
+    <legend>Memory</legend>
+    {{ sf('spec_type', 'Type', 'Type', 'e.g. 72-pin FPM, EDO, SDRAM') }}
+    {{ sf('spec_size', 'Size', 'Size', 'e.g. 16MB — normalised to KB') }}
+    {{ sf('spec_speed', 'Speed', 'Speed') }}
+  </fieldset>
+
+  {% elif ptype in ('video', 'sound', 'network', 'io') %}
+  <fieldset>
+    <legend>{{ type_labels.get(ptype, ptype) }} card</legend>
+    {{ sf('spec_chip', 'Chip', 'Main chip', 'e.g. Yamaha OPL3, S3 Trident, Realtek RTL8019') }}
+    {{ sf('spec_interface', 'Interface', 'Interface (bus)', '', 'dl_card_ifaces') }}
+    {% if ptype == 'video' %}{{ sf('spec_connector', 'Connector', 'Connector(s)', 'comma-separate several', 'dl_video_conn') }}
+      {{ sf('spec_memory', 'Memory', 'Memory', 'e.g. 1MB — normalised to KB') }}
+      {{ sf('spec_type', 'Type', 'Type') }}{% endif %}
+    {% if ptype == 'sound' %}{{ sf('spec_fm', 'FM', 'FM synthesis') }}
+      {{ sf('spec_ports', 'Ports', 'Ports', 'letters — ' + port_legend) }}{% endif %}
+    {% if ptype == 'network' %}{{ sf('spec_connector', 'Connector', 'Connector', 'e.g. 10BASE-T, BNC, AUI') }}{% endif %}
+    {% if ptype == 'io' %}{{ sf('spec_ports', 'Ports', 'Ports', 'letters — ' + port_legend + ' (e.g. IFSSP)') }}{% endif %}
+  </fieldset>
+
+  {% else %}
+  <fieldset>
+    <legend>Specs</legend>
+    <label for="specs">Specs <span class="muted">(free text — Key: value | Key: value)</span></label>
+    <textarea id="specs" name="specs">{{ (p.specs if p else '') or '' }}</textarea>
+  </fieldset>
+  {% endif %}
+
+  <fieldset>
+    <legend>Tracking</legend>
+    <label for="condition">Condition</label>
+    <select id="condition" name="condition">
+      {% set cur = (p.condition if p else '') or 'Working' %}
+      {% for opt in conditions %}<option value="{{ opt }}"{{ ' selected' if opt == cur else '' }}>{{ opt }}</option>{% endfor %}
+    </select>
+    <label for="source">Source</label>
+    <input id="source" name="source" value="{{ (p.source if p else '') or '' }}">
+    <label for="acquired_date">Acquired date</label>
+    <input id="acquired_date" name="acquired_date" value="{{ (p.acquired_date if p else '') or '' }}" placeholder="YYYY-MM-DD">
+    <label for="url">Reference URL</label>
+    <input id="url" name="url" value="{{ (p.url if p else '') or '' }}">
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes">{{ (p.notes if p else '') or '' }}</textarea>
+  </fieldset>
+
+  <p><button class="btn primary" type="submit">Save</button></p>
+</form>
+
+<script>
+  // Changing the type reloads the form with that type's fields.
+  const pt = document.getElementById('ptype');
+  if (pt) pt.addEventListener('change', () => {
+    const u = new URL(window.location.href);
+    u.searchParams.set('type', pt.value);
+    {% if not p %}window.location.href = '/parts/new' + u.search;{% endif %}
+  });
+  // Storage routing: hide part-only fields when the kind lives on the drives field.
+  const kind = document.getElementById('kind');
+  if (kind) {
+    const routed = ['SD/CF card', 'Optical', 'Floppy/Gotek'];
+    const drivePart = document.getElementById('drive-part');
+    const driveRoute = document.getElementById('drive-route');
+    function toggle() {
+      const r = routed.includes(kind.value);
+      driveRoute.style.display = r ? '' : 'none';
+      drivePart.style.display = r ? 'none' : '';
+    }
+    kind.addEventListener('change', toggle); toggle();
+  }
+</script>
+{% endblock %}

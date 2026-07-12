@@ -20,8 +20,11 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql+pymysql://${DB_USER:-retro}:${DB_PASSWORD:-retro}@db:3306/${DB_NAME:-retro}
+      RHDB_BASE_URL: ${RHDB_BASE_URL:-https://hmerrett.github.io/retro-hardware-database}
     ports:
       - "8000:8000"
+    volumes:
+      - images:/app/images
     depends_on:
       db:
         condition: service_healthy
@@ -38,3 +41,4 @@ services:
 
 volumes:
   dbdata:
+  images:

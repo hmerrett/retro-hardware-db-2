@@ -18,8 +18,9 @@ import sys
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from rhdb import (ROOT, TYPE_ORDER, add_api_arg, apply_api_arg, display_name,
-                  images_dir, index_by_id, load_computers, load_config,
+from rhdb import (ROOT, TYPE_ORDER, add_api_arg, apply_api_arg,
+                  configured_images_dir, display_name, download_image,
+                  image_manifest, index_by_id, load_computers, load_config,
                   load_parts, parse_specs, parts_for, placeholder_for,
                   type_label, type_sort_key, url_label, validate)
 
@@ -27,50 +28,85 @@ TEMPLATES_DIR = ROOT / "templates"
 SITE_DIR = ROOT / "site"
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
-IMAGES_DIR = None
+# Relative paths ('computers/RH-0001.jpg') of every available photo, from the
+# API's store or a local dir; and the local dir if one is in use (else None).
+AVAILABLE = set()
+LOCAL_DIR = None
+
+
+def _stem_ext(name):
+    dot = name.rfind(".")
+    return (name[:dot], name[dot:]) if dot > 0 else (name, "")
 
 
 def detect_image(kind, asset_id):
-    """Find a photo at <images_dir>/<kind>/<asset_id>.<ext> (kind is 'computers'
-    or 'parts')."""
-    folder = IMAGES_DIR / kind
+    """The primary photo path for an asset, or '' -- <kind>/<asset_id>.<ext>."""
     for ext in IMAGE_EXTS:
-        f = folder / f"{asset_id}{ext}"
-        if f.exists():
-            return f"{kind}/{f.name}"
+        rel = f"{kind}/{asset_id}{ext}"
+        if rel in AVAILABLE:
+            return rel
     return ""
 
 
 def detect_images(kind, asset_id, primary=""):
-    """Ordered photo list: the primary first, then any extras dropped in as
-    <asset_id>-2.<ext>, -3.<ext>, ... (numeric order first, then alphabetical)."""
-    folder = IMAGES_DIR / kind
+    """Ordered photos: the primary first, then extras named <asset_id>-2.<ext>,
+    -3.<ext>, ... (numeric order first, then alphabetical)."""
     imgs = []
+    primary = primary or detect_image(kind, asset_id)
     if primary:
         imgs.append(primary)
-    else:
-        primary = detect_image(kind, asset_id)
-        if primary:
-            imgs.append(primary)
+    prefix = f"{kind}/"
     extras = []
-    if folder.exists():
-        for f in folder.iterdir():
-            if f.suffix.lower() in IMAGE_EXTS and f.stem.startswith(asset_id + "-"):
-                extras.append(f)
+    for rel in AVAILABLE:
+        if not rel.startswith(prefix):
+            continue
+        stem, ext = _stem_ext(rel[len(prefix):])
+        if ext.lower() in IMAGE_EXTS and stem.startswith(asset_id + "-"):
+            extras.append(rel)
 
-    def sort_key(f):
-        suffix = f.stem[len(asset_id) + 1:]
+    def sort_key(rel):
+        stem, _ = _stem_ext(rel[len(prefix):])
+        suffix = stem[len(asset_id) + 1:]
         return (0, int(suffix), "") if suffix.isdigit() else (1, 0, suffix.lower())
 
-    for f in sorted(extras, key=sort_key):
-        imgs.append(f"{kind}/{f.name}")
-    return imgs
+    return imgs + sorted(extras, key=sort_key)
+
+
+def load_available():
+    """Populate AVAILABLE from a configured local dir, else the API manifest."""
+    global LOCAL_DIR
+    LOCAL_DIR = configured_images_dir()
+    if LOCAL_DIR:
+        for kind in ("computers", "parts"):
+            folder = LOCAL_DIR / kind
+            if folder.exists():
+                for f in folder.iterdir():
+                    if f.is_file() and f.suffix.lower() in IMAGE_EXTS:
+                        AVAILABLE.add(f"{kind}/{f.name}")
+    else:
+        AVAILABLE.update(image_manifest())
+
+
+def copy_images(dest):
+    """Put every available photo under dest -- copytree from the local dir, or
+    download each from the API."""
+    if LOCAL_DIR:
+        for rel in AVAILABLE:
+            src = LOCAL_DIR / rel
+            if src.exists():
+                out = dest / rel
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, out)
+    else:
+        for rel in AVAILABLE:
+            download_image(rel, dest / rel)
 
 
 def build():
     config = load_config()
     computers = load_computers()
     parts = load_parts()
+    load_available()
 
     warnings = validate(computers, parts)
     for w in warnings:
@@ -129,9 +165,7 @@ def build():
     if SITE_DIR.exists():
         shutil.rmtree(SITE_DIR)
     SITE_DIR.mkdir(parents=True)
-    if IMAGES_DIR.exists():
-        shutil.copytree(IMAGES_DIR, SITE_DIR / "images",
-                        ignore=shutil.ignore_patterns(".gitkeep"))
+    copy_images(SITE_DIR / "images")
     placeholders = ROOT / "assets" / "placeholders"
     if placeholders.exists():
         shutil.copytree(placeholders, SITE_DIR / "placeholders")
@@ -199,18 +233,16 @@ def build():
 
 
 def main():
-    global IMAGES_DIR
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     add_api_arg(ap)
     ap.add_argument("--images", default="",
-                    help="photo source dir (default: RHDB_IMAGES / config images_dir)")
+                    help="build photos from this local dir instead of the API store")
     args = ap.parse_args()
     apply_api_arg(args)
     if args.images:
         import os
         os.environ["RHDB_IMAGES"] = args.images
-    IMAGES_DIR = images_dir()
     build()
 
 

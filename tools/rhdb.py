@@ -68,13 +68,17 @@ def api_base() -> str:
     return url.rstrip("/")
 
 
-def images_dir() -> Path:
-    """Photo source dir. A relative path is resolved against the repo root (the
-    parent of tools/), so the default '../retro-hardware-database/images' lands
-    on the old flat-file repo cloned next to this one."""
-    raw = os.getenv("RHDB_IMAGES") or load_config().get("images_dir") or "images"
+def configured_images_dir():
+    """A LOCAL photo dir if one is configured (RHDB_IMAGES or config images_dir)
+    and it exists, else None -- in which case build_site pulls photos from the
+    API's image store (the volume the GUI uploads into). A relative path is
+    resolved against the repo root (the parent of tools/)."""
+    raw = os.getenv("RHDB_IMAGES") or load_config().get("images_dir") or ""
+    if not raw:
+        return None
     p = Path(raw)
-    return p if p.is_absolute() else (BASE_DIR.parent / p).resolve()
+    p = p if p.is_absolute() else (BASE_DIR.parent / p).resolve()
+    return p if p.exists() else None
 
 
 # --- HTTP / data access ----------------------------------------------------
@@ -104,6 +108,19 @@ def update_part(asset_id: str, fields: dict) -> dict:
 
 def create_part(fields: dict) -> dict:
     return _request("POST", "/api/parts", json=fields)
+
+
+def image_manifest() -> list[str]:
+    """Relative paths of every photo in the API's store, e.g.
+    'computers/RH-0001.jpg'."""
+    return _request("GET", "/api/images")
+
+
+def download_image(rel: str, dest: Path) -> None:
+    resp = requests.get(f"{api_base()}/images/{rel}", timeout=TIMEOUT)
+    resp.raise_for_status()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(resp.content)
 
 
 # --- pure helpers (verbatim from the flat-file common.py) ------------------

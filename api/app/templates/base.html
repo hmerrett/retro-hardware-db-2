@@ -5,23 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Retro Hardware Database{% endblock %}</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: light dark; --line: #8884; --muted: #8a8a8a; --accent: #3b82f6; }
   * { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; margin: 0; line-height: 1.5; }
-  header { padding: 12px 18px; border-bottom: 1px solid #8884; display: flex; gap: 14px; align-items: baseline; }
+  header { padding: 12px 18px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: baseline; }
   header a { text-decoration: none; }
   header .brand { font-weight: 600; }
   main { max-width: 1000px; margin: 0 auto; padding: 18px; }
+  a { color: var(--accent); }
   table { border-collapse: collapse; width: 100%; }
-  th, td { border-top: 1px solid #8884; padding: 6px 8px; text-align: left; vertical-align: top; }
-  th { color: #8a8a8a; font-weight: 500; font-size: 13px; }
-  .btn { display: inline-block; border: 1px solid #8886; border-radius: 7px; padding: 5px 11px; text-decoration: none; font-size: 14px; cursor: pointer; background: #8881; }
+  th, td { border-top: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .btn { display: inline-block; border: 1px solid #8886; border-radius: 7px; padding: 5px 11px; text-decoration: none; font-size: 14px; cursor: pointer; background: #8881; color: inherit; }
+  .btn:hover { background: #8882; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.sm { padding: 3px 8px; font-size: 13px; }
   .row-actions a { font-size: 13px; margin-right: 8px; }
-  form.edit label { display: block; margin: 10px 0 3px; color: #8a8a8a; font-size: 13px; }
-  form.edit input, form.edit textarea { width: 100%; padding: 7px 8px; border: 1px solid #8886; border-radius: 6px; font: inherit; background: transparent; color: inherit; }
+  form.edit label { display: block; margin: 10px 0 3px; color: var(--muted); font-size: 13px; }
+  form.edit input, form.edit textarea, form.edit select { width: 100%; padding: 7px 8px; border: 1px solid #8886; border-radius: 6px; font: inherit; background: transparent; color: inherit; }
   form.edit textarea { min-height: 60px; }
-  .muted { color: #8a8a8a; }
+  .hint { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+  .muted { color: var(--muted); }
   .chip { display: inline-block; background: #8882; border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+  .banner { background: #b4530022; border: 1px solid #b45300aa; border-radius: 8px; padding: 8px 12px; margin: 10px 0; }
+  .build-banner { background: #3b82f622; border: 1px solid #3b82f6aa; border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+  .toolbar input[type=search], .toolbar select { padding: 7px 9px; border: 1px solid #8886; border-radius: 7px; font: inherit; background: transparent; color: inherit; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .thumbs img { height: 110px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
+  .photo-main { max-width: 320px; max-height: 320px; border-radius: 10px; border: 1px solid var(--line); }
+  .section { margin-top: 24px; }
+  .flex { display: flex; align-items: baseline; gap: 12px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 14px 0; padding: 8px 14px 14px; }
+  legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
+  .inline-form { display: inline; }
 </style>
 </head>
 <body>

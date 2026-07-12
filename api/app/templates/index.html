@@ -1,38 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
-<div style="display:flex;align-items:baseline;gap:12px">
-  <h2 style="margin:0">Computers <span class="muted">({{ computers|length }})</span></h2>
-  <a class="btn" href="/computers/new">+ computer</a>
-  <span class="muted">· {{ part_total }} parts</span>
+<div class="flex">
+  <h2 style="margin:0">Inventory</h2>
+  <span class="muted">{{ n_computers }} computers · {{ n_parts }} parts</span>
+  <span style="flex:1"></span>
+  <a class="btn primary" href="/computers/new">+ Computer</a>
+  <a class="btn" href="/parts/new">+ Part</a>
 </div>
-<table>
-  <tr><th>Asset</th><th>Name</th><th>CPU</th><th>RAM</th><th>Parts</th><th></th></tr>
-  {% for c in computers %}
-  <tr>
-    <td><a href="/computers/{{ c.asset_id }}">{{ c.asset_id }}</a></td>
-    <td>{{ c.name or (c.manufacturer ~ ' ' ~ c.model)|trim or c.asset_id }}
-        {% if c.disposed %}<span class="chip">disposed</span>{% endif %}</td>
-    <td>{{ c.cpu }}</td>
-    <td>{{ c.installed_ram }}</td>
-    <td>{{ counts.get(c.asset_id, 0) }}</td>
-    <td class="row-actions"><a href="/computers/{{ c.asset_id }}/edit">edit</a></td>
-  </tr>
-  {% endfor %}
-</table>
 
-<div style="display:flex;align-items:baseline;gap:12px;margin-top:26px">
-  <h3 style="margin:0">Standalone parts <span class="muted">({{ standalone|length }})</span></h3>
-  <a class="btn" href="/parts/new">+ part</a>
+<div class="toolbar">
+  <input id="q" type="search" placeholder="Search name, maker, specs, asset no." style="flex:1;min-width:220px">
+  <select id="cat">
+    <option value="">All categories</option>
+    {% for key, label in cats %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+  </select>
+  <label class="muted"><input type="checkbox" id="showdisposed"> show disposed</label>
 </div>
-<table>
-  <tr><th>Asset</th><th>Type</th><th>Name</th><th></th></tr>
-  {% for p in standalone %}
-  <tr>
-    <td>{{ p.asset_id }}</td>
-    <td>{{ p.type }}</td>
-    <td>{{ p.name or (p.manufacturer ~ ' ' ~ p.model)|trim or p.asset_id }}</td>
-    <td class="row-actions"><a href="/parts/{{ p.asset_id }}/edit">edit</a></td>
+
+<table id="tbl">
+  <tr><th>Asset</th><th>Name</th><th>Category</th><th>Where</th></tr>
+  {% for r in rows %}
+  <tr class="item" data-cat="{{ r.cat }}" data-search="{{ r.search }}"
+      data-disposed="{{ '1' if r.obj.disposed else '0' }}">
+    <td><a href="/{{ 'computers' if r.kind == 'computer' else 'parts' }}/{{ r.obj.asset_id }}">{{ r.obj.asset_id }}</a></td>
+    <td>{{ r.name }}{% if r.obj.disposed %} <span class="chip">disposed</span>{% endif %}</td>
+    <td>{{ r.cat_label }}</td>
+    <td class="muted">{% if r.kind == 'computer' %}{{ r.sub }}{% elif r.parent %}<a href="/computers/{{ r.parent }}">{{ r.parent }}</a>{% else %}standalone{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
+<p id="empty" class="muted" style="display:none">No matching items.</p>
+
+<script>
+  const q = document.getElementById('q');
+  const cat = document.getElementById('cat');
+  const showd = document.getElementById('showdisposed');
+  const rows = [...document.querySelectorAll('#tbl tr.item')];
+  const empty = document.getElementById('empty');
+  function apply() {
+    const term = q.value.trim().toLowerCase();
+    const c = cat.value;
+    let shown = 0;
+    for (const r of rows) {
+      const okText = !term || r.dataset.search.includes(term);
+      const okCat = !c || r.dataset.cat === c;
+      const okDisp = showd.checked || r.dataset.disposed === '0';
+      const vis = okText && okCat && okDisp;
+      r.style.display = vis ? '' : 'none';
+      if (vis) shown++;
+    }
+    empty.style.display = shown ? 'none' : '';
+  }
+  [q, cat, showd].forEach(el => el.addEventListener('input', apply));
+  apply();
+</script>
 {% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ p.asset_id }} — Retro Hardware Database{% endblock %}
+{% block content %}
+<p><a href="/">&larr; all</a>{% if parent %} · <a href="/computers/{{ parent.asset_id }}">&larr; {{ parent.asset_id }}</a>{% endif %}</p>
+<div class="flex">
+  <h2 style="margin:0">{{ display_name({'name': p.name, 'manufacturer': p.manufacturer, 'model': p.model, 'asset_id': p.asset_id}) }}</h2>
+  <span class="chip">{{ type_label(p.type) }}</span>
+  <span class="muted">{{ p.asset_id }}</span>
+  <span style="flex:1"></span>
+  <a class="btn sm" href="/parts/{{ p.asset_id }}/edit">edit</a>
+  <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
+  <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=0" target="_blank">full label</a>
+</div>
+
+{% if p.disposed %}
+<div class="banner">Disposed — {{ p.disposed }}
+  <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/restore">
+    <button class="btn sm" type="submit">restore</button></form>
+</div>
+{% endif %}
+
+<div style="display:flex;gap:20px;flex-wrap:wrap">
+  <table style="flex:1;min-width:280px">
+    {% for k, v in [('Manufacturer', p.manufacturer), ('Model', p.model), ('Year', p.year), ('Condition', p.condition), ('Source', p.source), ('Acquired', p.acquired_date)] %}
+      {% if v %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endif %}
+    {% endfor %}
+    {% if p.computer_id %}<tr><th>Installed in</th><td><a href="/computers/{{ p.computer_id }}">{{ p.computer_id }}</a></td></tr>{% endif %}
+    {% if p.disk_image %}<tr><th>Disk image</th><td>{{ p.disk_image }}</td></tr>{% endif %}
+    {% if p.url %}<tr><th>Reference</th><td><a href="{{ p.url }}" target="_blank">{{ p.url }}</a></td></tr>{% endif %}
+    {% if p.notes %}<tr><th>Notes</th><td>{{ p.notes }}</td></tr>{% endif %}
+  </table>
+  <div>
+    {% if images %}<img class="photo-main" src="/images/{{ images[0] }}" alt="{{ p.asset_id }}">
+      {% if images|length > 1 %}<div class="thumbs">{% for img in images[1:] %}<img src="/images/{{ img }}">{% endfor %}</div>{% endif %}
+    {% endif %}
+    <form method="post" action="/parts/{{ p.asset_id }}/photo" enctype="multipart/form-data" style="margin-top:8px">
+      <input type="file" name="photo" accept="image/*" required>
+      <button class="btn sm" type="submit">upload photo</button>
+    </form>
+    {% if not p.disposed %}
+    <form method="post" action="/parts/{{ p.asset_id }}/dispose" style="margin-top:8px">
+      <input name="note" placeholder="disposed note / date" style="padding:4px 6px">
+      <button class="btn sm" type="submit">mark disposed</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if spec_pairs %}
+<div class="section">
+  <h3 style="margin:0 0 6px">Specs</h3>
+  <table>
+    {% for k, v in spec_pairs %}<tr><th>{{ k or '—' }}</th><td>{{ v }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}
