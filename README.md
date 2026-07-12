@@ -8,10 +8,12 @@ GUI), and a small server-rendered web GUI for day-to-day editing. Runs under
 ```
 docker-compose
 ├── db    MariaDB 11            (data volume: dbdata)
-└── api   FastAPI + uvicorn     (http://localhost:8000)
-          ├── /            web GUI (list / view / edit computers + parts)
-          ├── /api/...     JSON REST API  (computers, parts)
-          └── /docs        interactive OpenAPI docs
+├── api   FastAPI + uvicorn     (http://localhost:8000)
+│         ├── /            web GUI (list / view / edit computers + parts)
+│         ├── /api/...     JSON REST API  (computers, parts)
+│         └── /docs        interactive OpenAPI docs
+└── mcp   MCP server            (http://localhost:8001/mcp)
+          └── native list/get/create/update/delete tools over the REST API
 ```
 
 Data model mirrors the CSV world: one shared asset register (`RH-0001`…) across
@@ -53,6 +55,30 @@ cutover without duplicates.
 `GET /api/parts?computer_id=RH-0010` and `?type=sound` filter. PATCH only changes
 the fields you send. Full schema + try-it-out at `/docs`.
 
+## MCP server (AI access)
+
+The `mcp` service (in `mcp/`) is a thin wrapper over the REST API that gives an
+AI client native tools:
+
+- `list_computers`, `get_computer`, `create_computer`, `update_computer`, `delete_computer`
+- `list_parts` (filter by `computer_id` / `type`), `get_part`, `create_part`, `update_part`, `delete_part`
+
+It holds no data of its own — every call is an HTTP request to `api`, so the MCP
+server, the GUI and the ported scripts all read/write the same database. It
+speaks the streamable-HTTP transport on `:8001` and comes up with the stack.
+
+**Point Claude Code at it.** A project-scoped `.mcp.json` is committed at the
+repo root, so running `claude` in this directory offers the server for approval —
+accept it once and the tools are available. Equivalent CLI:
+
+```
+claude mcp add --transport http retro-hardware http://localhost:8001/mcp
+```
+
+From another machine on the LAN, swap `localhost` for the host (e.g.
+`http://192.168.1.2:8001/mcp`). `create_*` assigns the next asset id; `update_*`
+only changes the fields you pass.
+
 ## Local dev without Docker/MariaDB
 
 The app falls back to SQLite if you set `DATABASE_URL`:
@@ -64,10 +90,10 @@ DATABASE_URL=sqlite:///dev.db uvicorn app.main:app --reload
 
 ## Status (v0) and what's next
 
-v0 covers the DB, the REST API + OpenAPI, CSV migration, and a minimal editing
-GUI. Planned next:
+v0 covers the DB, the REST API + OpenAPI, CSV migration, a minimal editing GUI,
+and an **MCP server** wrapping the REST API so Claude gets first-class tools.
+Planned next:
 
-- **MCP server** wrapping the REST API so Claude gets first-class tools.
 - Port the utilities to the API: `build_site.py` (public static site + QR
   labels), `make_labels.py` (DYMO), `import_report.py` (boot-disk HWiNFO/MSD).
 - Richer bespoke GUI: the guided build walk, storage-kind routing (hard disk →
