@@ -65,6 +65,8 @@ def _is_public_read(request: Request) -> bool:
     path = request.url.path
     if path == "/" or path.startswith("/images/") or path.startswith("/static/"):
         return True
+    if path.startswith("/items/"):
+        return True
     if path.startswith("/computers/") or path.startswith("/parts/"):
         if path.endswith("/new") or "/edit" in path or "/label.pdf" in path:
             return False
@@ -245,6 +247,19 @@ def _save_photo(kind, asset_id, upload: UploadFile):
     with open(folder / name, "wb") as f:
         shutil.copyfileobj(upload.file, f)
     return f"{kind}/{name}"
+
+
+# --- QR target: one stable /items/<id> URL for either kind ------------------
+
+@app.get("/items/{aid}", include_in_schema=False)
+def gui_item(aid: str, db: Session = Depends(get_db)):
+    """The URL printed on labels: resolve an asset id to its page whether it's a
+    computer or a part. Keeps the same /items/<id> scheme the old QR codes used."""
+    if db.get(Computer, aid):
+        return RedirectResponse(f"/computers/{aid}", status_code=307)
+    if db.get(Part, aid):
+        return RedirectResponse(f"/parts/{aid}", status_code=307)
+    raise HTTPException(404, f"no asset {aid}")
 
 
 # --- GUI: index ------------------------------------------------------------

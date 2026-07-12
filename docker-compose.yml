@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: mysql+pymysql://${DB_USER:-retro}:${DB_PASSWORD:-retro}@db:3306/${DB_NAME:-retro}
-      RHDB_BASE_URL: ${RHDB_BASE_URL:-https://hmerrett.github.io/retro-hardware-database}
+      RHDB_BASE_URL: ${RHDB_BASE_URL:-https://db.2600.me}
       RHDB_AUTH_USER: ${RHDB_AUTH_USER:-}
       RHDB_AUTH_PASSWORD: ${RHDB_AUTH_PASSWORD:-}
     ports:

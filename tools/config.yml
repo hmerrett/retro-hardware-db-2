@@ -22,7 +22,7 @@ images_dir: ""
 # The public base URL of your GitHub Pages site.
 # For a project page it is:  https://<your-username>.github.io/<repo-name>/
 # This is what the QR codes encode, so set it correctly BEFORE printing labels.
-base_url: "https://hmerrett.github.io/retro-hardware-database"
+base_url: "https://db.2600.me"
 
 # Asset numbering. One shared register across BOTH tables (computers + parts),
 # so every physical object gets a single unique tag, e.g. RH-0001.
