@@ -21,11 +21,48 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from . import entry, labels
+from . import entry, labels, specstruct
 from .db import get_db
 from .ids import next_asset_id
-from .models import Computer, Part
+from .models import (Computer, CpuSpec, IoSpec, MotherboardSpec, NetworkSpec,
+                     Part, PartAttribute, PartPort, PartRamSlot, PartSlot,
+                     RamSpec, SoundSpec, StorageSpec, VideoSpec)
 from .schemas import ComputerIn, ComputerOut, PartIn, PartOut
+
+# Which typed spec table backs each part type.
+SPEC_MODEL = {
+    "motherboard": MotherboardSpec, "cpu": CpuSpec, "ram": RamSpec,
+    "video": VideoSpec, "sound": SoundSpec, "network": NetworkSpec,
+    "io": IoSpec, "storage": StorageSpec,
+}
+SPEC_TABLES = list(SPEC_MODEL.values()) + [PartSlot, PartRamSlot, PartPort,
+                                           PartAttribute]
+
+
+def sync_part_specs(db, part):
+    """Keep the normalised spec tables in step with a part's specs string, and
+    canonicalise the string itself. Called on every part create/update; the part
+    must already be flushed so its asset_id exists for the FK."""
+    ptype = part.type or "other"
+    st = specstruct.parse(ptype, part.specs or "")
+    part.specs = specstruct.format(ptype, st)
+    aid = part.asset_id
+    for model in SPEC_TABLES:
+        db.query(model).filter(model.part_id == aid).delete(synchronize_session=False)
+    model = SPEC_MODEL.get(ptype)
+    if model:
+        cols = dict(st.scalars)
+        if ptype == "storage" and st.chs:
+            cols["chs_c"], cols["chs_h"], cols["chs_s"] = st.chs
+        db.add(model(part_id=aid, **cols))
+    for bus, n in st.slots:
+        db.add(PartSlot(part_id=aid, bus=bus, count=n))
+    for slot_type, n in st.ram_slots:
+        db.add(PartRamSlot(part_id=aid, slot_type=slot_type, count=n))
+    for port, n in st.ports:
+        db.add(PartPort(part_id=aid, port=port, count=n))
+    for k, v in st.attributes:
+        db.add(PartAttribute(part_id=aid, akey=k or "", avalue=v))
 
 # Schema is owned by Alembic now (entrypoint.sh runs `alembic upgrade head` on
 # start); no create_all here.
@@ -164,6 +201,8 @@ def api_list_parts(computer_id: str | None = None, type: str | None = None,
 def api_create_part(data: PartIn, db: Session = Depends(get_db)):
     obj = Part(asset_id=next_asset_id(db), **data.model_dump())
     db.add(obj)
+    db.flush()
+    sync_part_specs(db, obj)
     db.commit()
     db.refresh(obj)
     return obj
@@ -179,6 +218,7 @@ def api_update_part(aid: str, data: PartIn, db: Session = Depends(get_db)):
     obj = get_or_404(db, Part, aid)
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
+    sync_part_specs(db, obj)
     db.commit()
     db.refresh(obj)
     return obj
@@ -541,6 +581,8 @@ async def gui_create_part(request: Request, db: Session = Depends(get_db)):
                                          form.get("kind", "") or "")
     obj = Part(asset_id=next_asset_id(db), **data)
     db.add(obj)
+    db.flush()
+    sync_part_specs(db, obj)
     db.commit()
     dest = f"/computers/{computer_id}?build=1" if computer_id else f"/parts/{obj.asset_id}"
     return RedirectResponse(dest, status_code=303)
@@ -573,6 +615,7 @@ async def gui_save_part(aid: str, request: Request, db: Session = Depends(get_db
         data["specs"] = entry.merge_spec(data["specs"], "Kind", form.get("kind"))
     for k, v in data.items():
         setattr(p, k, v)
+    sync_part_specs(db, p)
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
