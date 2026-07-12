@@ -260,3 +260,17 @@ def type_sort_key(t: str) -> int:
         return TYPE_ORDER.index(t)
     except ValueError:
         return len(TYPE_ORDER)
+
+
+# Placeholder icon (served from /static/placeholders/) shown when an item has no
+# photo -- same set as the old public site.
+PLACEHOLDER = {
+    "computer": "computer", "motherboard": "board", "cpu": "chip", "ram": "ram",
+    "video": "card", "sound": "card", "network": "card", "io": "card",
+    "storage": "drive", "optical": "disc", "floppy": "floppy", "psu": "psu",
+    "cooler": "fan", "peripheral": "keyboard", "other": "box",
+}
+
+
+def placeholder_for(kind_or_type: str) -> str:
+    return "placeholders/" + PLACEHOLDER.get(kind_or_type, "box") + ".svg"

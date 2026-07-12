@@ -14,44 +14,79 @@
     <option value="">All categories</option>
     {% for key, label in cats %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
   </select>
+  <select id="sort">
+    <option value="photos">Photos first</option>
+    <option value="newest">Newest added</option>
+    <option value="oldest">Oldest added</option>
+    <option value="name">Name A–Z</option>
+  </select>
   <label class="muted"><input type="checkbox" id="showdisposed"> show disposed</label>
+  <span class="count" id="count"></span>
 </div>
 
-<table id="tbl">
-  <tr><th>Asset</th><th>Name</th><th>Category</th><th>Where</th></tr>
+<div class="grid" id="grid">
   {% for r in rows %}
-  <tr class="item" data-cat="{{ r.cat }}" data-search="{{ r.search }}"
-      data-disposed="{{ '1' if r.obj.disposed else '0' }}">
-    <td><a href="/{{ 'computers' if r.kind == 'computer' else 'parts' }}/{{ r.obj.asset_id }}">{{ r.obj.asset_id }}</a></td>
-    <td>{{ r.name }}{% if r.obj.disposed %} <span class="chip">disposed</span>{% endif %}</td>
-    <td>{{ r.cat_label }}</td>
-    <td class="muted">{% if r.kind == 'computer' %}{{ r.sub }}{% elif r.parent %}<a href="/computers/{{ r.parent }}">{{ r.parent }}</a>{% else %}standalone{% endif %}</td>
-  </tr>
+  <a class="card" href="/{{ 'computers' if r.kind == 'computer' else 'parts' }}/{{ r.obj.asset_id }}"
+     data-cat="{{ r.cat }}" data-search="{{ r.search }}"
+     data-disposed="{{ '1' if r.obj.disposed else '0' }}"
+     data-num="{{ r.obj.asset_id.split('-')[-1] }}"
+     data-img="{{ '1' if r.image else '0' }}" data-name="{{ r.name|lower }}">
+    <div class="thumb">
+      {% if r.image %}<img src="/images/{{ r.image }}" alt="{{ r.name }}" loading="lazy">
+      {% else %}<img class="ph" src="/static/{{ r.placeholder }}" alt="{{ r.cat_label }}" loading="lazy">{% endif %}
+    </div>
+    <div class="body">
+      <div class="aid">{{ r.obj.asset_id }}</div>
+      <div class="nm">{{ r.name }}</div>
+      <span class="chip">{{ r.cat_label }}</span>
+      {% if r.year %}<span class="chip">{{ r.year }}</span>{% endif %}
+      {% if r.parent %}<span class="chip">in {{ r.parent }}</span>{% endif %}
+      {% if r.obj.disposed %}<span class="chip">disposed</span>{% endif %}
+    </div>
+  </a>
   {% endfor %}
-</table>
+</div>
 <p id="empty" class="muted" style="display:none">No matching items.</p>
 
 <script>
   const q = document.getElementById('q');
   const cat = document.getElementById('cat');
+  const sortSel = document.getElementById('sort');
   const showd = document.getElementById('showdisposed');
-  const rows = [...document.querySelectorAll('#tbl tr.item')];
+  const grid = document.getElementById('grid');
+  const count = document.getElementById('count');
   const empty = document.getElementById('empty');
+  const cards = [...grid.children];
+
+  function num(el) { return parseInt(el.dataset.num || '0', 10) || 0; }
+  function sortCards(mode) {
+    const arr = cards.slice();
+    arr.sort((a, b) => {
+      if (mode === 'oldest') return num(a) - num(b);
+      if (mode === 'newest') return num(b) - num(a);
+      if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      const ai = a.dataset.img === '1' ? 1 : 0, bi = b.dataset.img === '1' ? 1 : 0;
+      if (ai !== bi) return bi - ai;
+      return num(b) - num(a);
+    });
+    arr.forEach(el => grid.appendChild(el));
+  }
   function apply() {
+    sortCards(sortSel.value);
     const term = q.value.trim().toLowerCase();
     const c = cat.value;
     let shown = 0;
-    for (const r of rows) {
-      const okText = !term || r.dataset.search.includes(term);
-      const okCat = !c || r.dataset.cat === c;
-      const okDisp = showd.checked || r.dataset.disposed === '0';
-      const vis = okText && okCat && okDisp;
-      r.style.display = vis ? '' : 'none';
-      if (vis) shown++;
+    for (const el of cards) {
+      const ok = (!term || el.dataset.search.includes(term))
+        && (!c || el.dataset.cat === c)
+        && (showd.checked || el.dataset.disposed === '0');
+      el.style.display = ok ? '' : 'none';
+      if (ok) shown++;
     }
+    count.textContent = shown + ' item' + (shown === 1 ? '' : 's');
     empty.style.display = shown ? 'none' : '';
   }
-  [q, cat, showd].forEach(el => el.addEventListener('input', apply));
+  [q, cat, sortSel, showd].forEach(el => el.addEventListener('input', apply));
   apply();
 </script>
 {% endblock %}

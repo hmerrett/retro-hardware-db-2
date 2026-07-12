@@ -69,6 +69,8 @@ IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 for sub in ("computers", "parts"):
     (IMAGES_DIR / sub).mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
+app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
+          name="static")
 
 
 def get_or_404(db, model, aid):
@@ -233,22 +235,41 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
         if p.computer_id:
             counts[p.computer_id] = counts.get(p.computer_id, 0) + 1
     comp_ids = {c.asset_id for c in computers}
+
+    def primary_image(kind, aid):
+        imgs = detect_images(kind, aid)
+        return imgs[0] if imgs else ""
+
+    def storage_placeholder(p):
+        kind = dict(entry.parse_specs(p.specs or "")).get("Kind", "").lower()
+        if "optical" in kind:
+            return entry.placeholder_for("optical")
+        if "floppy" in kind or "gotek" in kind:
+            return entry.placeholder_for("floppy")
+        return entry.placeholder_for("storage")
+
     rows = []
     for c in computers:
         rows.append({
             "obj": c, "kind": "computer", "cat": "computer",
-            "cat_label": "Computer", "parent": "",
+            "cat_label": "Computer", "parent": "", "year": c.year or "",
             "name": entry.display_name(to_dict(c)),
+            "image": primary_image("computers", c.asset_id),
+            "placeholder": entry.placeholder_for("computer"),
             "sub": f"{counts.get(c.asset_id, 0)} part(s)",
             "search": " ".join([c.asset_id, c.name or "", c.manufacturer or "",
                                  c.model or "", c.os or "", c.cpu or ""]).lower(),
         })
     for p in parts:
+        ptype = p.type or "other"
         rows.append({
-            "obj": p, "kind": "part", "cat": p.type or "other",
-            "cat_label": entry.type_label(p.type or "other"),
+            "obj": p, "kind": "part", "cat": ptype,
+            "cat_label": entry.type_label(ptype), "year": p.year or "",
             "parent": p.computer_id if p.computer_id in comp_ids else "",
             "name": entry.display_name(to_dict(p)),
+            "image": primary_image("parts", p.asset_id),
+            "placeholder": (storage_placeholder(p) if ptype == "storage"
+                            else entry.placeholder_for(ptype)),
             "sub": (p.computer_id if p.computer_id else "standalone"),
             "search": " ".join([p.asset_id, p.name or "", p.manufacturer or "",
                                  p.model or "", p.specs or "", p.type or ""]).lower(),

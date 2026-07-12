@@ -36,6 +36,17 @@
   .photo-main { max-width: 320px; max-height: 320px; border-radius: 10px; border: 1px solid var(--line); }
   .section { margin-top: 24px; }
   .flex { display: flex; align-items: baseline; gap: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-top: 14px; }
+  .card { display: block; background: #8880; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; }
+  .card:hover { border-color: var(--accent); }
+  .card .thumb { aspect-ratio: 4 / 3; background: #8881; display: flex; align-items: center; justify-content: center; }
+  .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card .thumb img.ph { width: 46%; height: 46%; object-fit: contain; opacity: .55; }
+  .card .body { padding: 9px 11px; }
+  .card .aid { font-size: 12px; color: var(--muted); }
+  .card .nm { font-size: 14px; margin: 2px 0 7px; line-height: 1.3; }
+  .card[data-disposed="1"] { opacity: .5; }
+  .count { color: var(--muted); font-size: 13px; }
   fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 14px 0; padding: 8px 14px 14px; }
   legend { color: var(--muted); font-size: 13px; padding: 0 6px; }
   .inline-form { display: inline; }
