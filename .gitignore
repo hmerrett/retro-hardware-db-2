@@ -15,3 +15,6 @@ tools/labels/*.html
 # Boot-disk detector reports are machine-specific inputs
 tools/imports/*.txt
 tools/imports/*.TXT
+
+# Local backups
+backups/
