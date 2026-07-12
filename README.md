@@ -79,6 +79,36 @@ From another machine on the LAN, swap `localhost` for the host (e.g.
 `http://192.168.1.2:8001/mcp`). `create_*` assigns the next asset id; `update_*`
 only changes the fields you pass.
 
+## Ported utilities (`tools/`)
+
+The flat-file scripts, re-pointed at the REST API instead of the CSVs. They read
+(and, for the importer, write) over the network, so they can run on whichever
+box has the hardware — e.g. the machine with the DYMO printers and the floppy
+reader — against the API on the LAN. Shared data access + config live in
+`tools/rhdb.py`; `tools/config.yml` carries the (non-secret) base URL, label and
+printer settings.
+
+```
+cd tools
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+export RHDB_API=http://192.168.1.2:8000        # or pass --api / edit config.yml
+```
+
+- **`build_site.py`** — renders the public static site into `tools/site/` (one
+  `items/<asset_id>/` page each, so QR codes already printed keep resolving).
+  Photos are read from `images_dir` (defaults to the old flat-file repo's
+  `images/` until the GUI owns photo storage — step 5).
+- **`make_labels.py`** — print-ready label PDFs with a QR to the item's page;
+  `--small`, `--auto` (computers → full+small, real parts → small), `--print`
+  (macOS/CUPS `lp`). QR encodes `<base_url>/items/<asset_id>/`.
+- **`import_report.py`** — reads an HWiNFO/MSD boot-disk report from
+  `tools/imports/<asset_id>.txt` and proposes CPU/OS (computer), BIOS/chipset/
+  onboard-video/ports (its motherboard) and one storage part per detected drive.
+  Nothing is written until you confirm; on confirm it PATCHes/POSTs the API.
+
+Publishing `tools/site/` to GitHub Pages is a separate step — the API is
+LAN-only, so the build runs locally rather than in GitHub's CI.
+
 ## Local dev without Docker/MariaDB
 
 The app falls back to SQLite if you set `DATABASE_URL`:

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ p.asset_id }} · {{ p.display_name }} — {{ config.site_title }}{% endblock %}
+{% block content %}
+<p class="back"><a href="{{ root }}index.html">← all items</a></p>
+
+{% if p.disposed %}<div class="disposed-banner">Disposed of — {{ p.disposed }}</div>{% endif %}
+
+<div class="item-head">
+  {% if p.images %}
+  <div class="gallery">
+    <img class="zoomable gmain" src="{{ root }}images/{{ p.images[0] }}" alt="{{ p.display_name }}">
+    {% if p.images|length > 1 %}
+    <div class="thumbs">
+      {% for img in p.images %}
+      <img class="gthumb{{ ' on' if loop.first else '' }}" src="{{ root }}images/{{ img }}" alt="{{ p.display_name }} photo {{ loop.index }}">
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}<img class="ph-lg" src="{{ root }}{{ p.placeholder }}" alt="{{ p.type_label }}">{% endif %}
+  <div>
+    <div class="aid">{{ p.asset_id }}</div>
+    <h2>{{ p.display_name }}</h2>
+    <p>
+      <span class="chip">{{ p.type_label }}</span>
+      {% if p.manufacturer %}<span class="chip">{{ p.manufacturer }}</span>{% endif %}
+      {% if p.year %}<span class="chip">{{ p.year }}</span>{% endif %}
+    </p>
+    {% if p.parent %}
+      <p class="pill">Installed in: <a href="{{ root }}items/{{ p.parent.asset_id }}/">{{ p.parent.display_name }}</a> ({{ p.parent.asset_id }})</p>
+    {% else %}
+      <p class="pill">Standalone — not currently installed</p>
+    {% endif %}
+    {% if p.summary %}<p>{{ p.summary }}</p>{% endif %}
+  </div>
+</div>
+
+{% if p.spec_pairs %}
+<table class="specs">
+  {% for k, v in p.spec_pairs %}
+  <tr><td class="k">{{ k or '—' }}</td><td>{{ v }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<div class="meta">
+  {% if p.condition %}Condition: {{ p.condition }}{% endif %}
+  {% if p.source %} · Source: {{ p.source }}{% endif %}
+  {% if p.acquired_date %} · Acquired: {{ p.acquired_date }}{% endif %}
+</div>
+{% if p.notes %}<p class="meta">Notes: {{ p.notes }}</p>{% endif %}
+{% if p.disk_image %}<p class="meta">Disk image: {{ p.disk_image }}</p>{% endif %}
+
+<div class="refs">
+  {% if p.url %}<a href="{{ p.url }}">{{ p.url_label }} ↗</a>{% endif %}
+</div>
+{% endblock %}

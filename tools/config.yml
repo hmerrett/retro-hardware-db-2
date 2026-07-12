@@ -1,0 +1,87 @@
+# Retro Hardware Database — configuration
+# Edit this, then re-run the scripts. Nothing here is secret, so it's safe in a public repo.
+
+site_title: "Retro Hardware Database"
+owner: "Henry"
+
+# Base URL of the REST API the ported scripts read/write (the single source of
+# truth). Override per-run with RHDB_API or --api. On the printer/reader box,
+# point this at the API host on the LAN, e.g. http://192.168.1.2:8000
+api_url: "http://localhost:8000"
+
+# Where item photos are read from when building the site / labels. Until the GUI
+# owns photo storage (step 5) this points at the old flat-file repo's images/.
+# Override with RHDB_IMAGES or --images.
+images_dir: "../retro-hardware-database/images"
+
+# The public base URL of your GitHub Pages site.
+# For a project page it is:  https://<your-username>.github.io/<repo-name>/
+# This is what the QR codes encode, so set it correctly BEFORE printing labels.
+base_url: "https://hmerrett.github.io/retro-hardware-database"
+
+# Asset numbering. One shared register across BOTH tables (computers + parts),
+# so every physical object gets a single unique tag, e.g. RH-0001.
+asset_prefix: "RH-"
+asset_pad: 4
+
+# Label settings (6 x 4 by default — change units to "mm" for 152 x 102 mm, etc.)
+label:
+  width: 6
+  height: 4
+  # units: "in" or "mm"
+  units: "in"
+  # QR error-correction: L, M, Q, or H
+  qr_error: "M"
+  # rotate the printed label by this many degrees (0/90/180/270); flip to 270 if upside down
+  rotate: 90
+  # Optional TTF display font for the asset number + title on labels.
+  # Drop the file at this path; if it's missing, labels fall back to Helvetica.
+  font_path: "assets/fonts/Audiowide-Regular.ttf"
+
+# Smaller label: QR + asset number + make/model only (e.g. a 19 x 51 mm Dymo).
+# Used with:  python scripts/make_labels.py --small RH-0001
+label_small:
+  width: 51
+  height: 19
+  units: "mm"
+  qr_error: "M"
+  # rotate the printed label by this many degrees (0/90/180/270); flip to 270 if upside down
+  rotate: 90
+  # safe margin (mm) kept clear at each end so the printer doesn't clip the text
+  safe_mm: 3
+
+# Printing — macOS `lp` (CUPS). List your printers with:  lpstat -p
+# Set small_printer to your label printer's name (blank = system default).
+# With enabled and ask both on, you're asked "Print label now?" after you add
+# or update a part; set ask to false to print automatically without asking.
+print:
+  enabled: true
+  ask: true
+  copies: 1
+  small_printer: "DYMO_LabelWriter_450_Turbo"
+  full_printer: "DYMO_LabelWriter_4XL"
+
+# Enrichment
+enrich:
+  # Wikipedia / Wikimedia (free, no key). Used for summaries + photos.
+  wikipedia_lang: "en"
+  user_agent: "RetroHardwareDB/1.0 (https://github.com/hmerrett/retro-hardware-database)"
+  # downscale downloaded photos so the repo stays light
+  image_max_px: 1000
+
+  # The Retro Web (https://theretroweb.com) — community hardware database.
+  # No public API; the site is behind Cloudflare. We ALWAYS store the reference
+  # link in the url column. Auto-pull of specs is BEST EFFORT: for a
+  # theretroweb.com url it is attempted with `--browser` (headless Chrome), one
+  # page at a time, with an identifying user-agent. It does not bypass bot
+  # protection — if Cloudflare blocks it, it skips and keeps the link.
+  theretroweb_user_agent: "RetroHardwareDB/1.0 (personal collection; +https://github.com/hmerrett/retro-hardware-database)"
+  theretroweb_delay_seconds: 3
+  # User-agent for --browser (headless) Retro Web fetches — looks like Chrome.
+  theretroweb_browser_ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  # SHA1s of Retro Web "please send a picture" holding images to ignore.
+  theretroweb_skip_image_sha1:
+    # hard-drive placeholder
+    - "0e07517a48ddafd09fe2834ef5e50d52dbbaeec0"
+    # expansion-card placeholder
+    - "b1b631422579c64ffd1f7eaf392d9c6c36ca8a16"

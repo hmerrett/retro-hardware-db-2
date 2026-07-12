@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="controls">
+  <input id="q" type="search" placeholder="Search name, maker, specs, asset no.">
+  <select id="cat">
+    <option value="">All types</option>
+    {% for c in categories %}<option value="{{ c.key }}">{{ c.label }}</option>{% endfor %}
+  </select>
+  <select id="sort">
+    <option value="photos">Photos first</option>
+    <option value="newest">Newest added</option>
+    <option value="oldest">Oldest added</option>
+    <option value="name">Name A–Z</option>
+  </select>
+  <label><input type="checkbox" id="gen"> Show generic parts</label>
+  <label><input type="checkbox" id="disp"> Show disposed</label>
+  <span class="tag" id="count"></span>
+</div>
+
+<div class="grid" id="grid">
+  {% for a in assets %}
+  <a class="card" href="{{ root }}items/{{ a.asset_id }}/"
+     data-cat="{{ a.cat }}" data-generic="{{ '1' if a.generic else '' }}"
+     data-disposed="{{ '1' if a.disposed else '' }}"
+     data-num="{{ a.asset_id.split('-')[-1] }}" data-img="{{ '1' if a.image else '' }}"
+     data-name="{{ a.display_name|lower }}"
+     data-text="{{ a.search_text }}">
+    <div class="thumb">
+      {% if a.image %}
+        <img src="{{ root }}images/{{ a.image }}" alt="{{ a.display_name }}" loading="lazy">
+      {% else %}
+        <img class="ph" src="{{ root }}{{ a.placeholder }}" alt="{{ a.cat_label }}" loading="lazy">
+      {% endif %}
+    </div>
+    <div class="body">
+      <div class="aid">{{ a.asset_id }}</div>
+      <div class="nm">{{ a.display_name }}</div>
+      <span class="chip">{{ a.cat_label }}</span>
+      {% if a.year %}<span class="chip">{{ a.year }}</span>{% endif %}
+      {% if a.parent %}<span class="chip">in {{ a.parent }}</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<script>
+  const q = document.getElementById('q');
+  const cat = document.getElementById('cat');
+  const gen = document.getElementById('gen');
+  const disp = document.getElementById('disp');
+  const sort = document.getElementById('sort');
+  const grid = document.getElementById('grid');
+  const count = document.getElementById('count');
+  const cards = Array.from(grid.children);
+
+  const params = new URLSearchParams(location.search);
+  if (params.has('q')) q.value = params.get('q');
+  if (params.has('cat')) cat.value = params.get('cat');
+  if (params.get('gen') === '1') gen.checked = true;
+  if (params.get('disposed') === '1') disp.checked = true;
+  if (params.has('sort')) sort.value = params.get('sort');
+
+  function num(el){ return parseInt(el.dataset.num || '0', 10) || 0; }
+  function sortCards(mode){
+    const arr = cards.slice();
+    arr.sort(function(a, b){
+      if (mode === 'oldest') return num(a) - num(b);
+      if (mode === 'newest') return num(b) - num(a);
+      if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      const ai = a.dataset.img ? 1 : 0, bi = b.dataset.img ? 1 : 0;
+      if (ai !== bi) return bi - ai;
+      return num(b) - num(a);
+    });
+    arr.forEach(function(el){ grid.appendChild(el); });
+  }
+  function syncUrl(){
+    const p = new URLSearchParams();
+    if (q.value.trim()) p.set('q', q.value.trim());
+    if (cat.value) p.set('cat', cat.value);
+    if (gen.checked) p.set('gen', '1');
+    if (disp.checked) p.set('disposed', '1');
+    if (sort.value && sort.value !== 'photos') p.set('sort', sort.value);
+    const qs = p.toString();
+    history.replaceState(null, '', qs ? ('?' + qs) : location.pathname);
+  }
+  function apply(){
+    sortCards(sort.value || 'photos');
+    const t = q.value.trim().toLowerCase();
+    const c = cat.value;
+    const showGen = gen.checked;
+    const showDisp = disp.checked;
+    let n = 0, hiddenGen = 0, hiddenDisp = 0;
+    for (const el of cards){
+      const isGen = el.dataset.generic === '1';
+      const isDisp = el.dataset.disposed === '1';
+      const matchOthers = (!t || el.dataset.text.includes(t)) && (!c || el.dataset.cat === c);
+      const ok = matchOthers && (showGen || !isGen) && (showDisp || !isDisp);
+      el.style.display = ok ? '' : 'none';
+      if (ok) n++;
+      else if (matchOthers && isDisp && !showDisp) hiddenDisp++;
+      else if (matchOthers && isGen && !showGen) hiddenGen++;
+    }
+    let msg = n + ' item' + (n === 1 ? '' : 's');
+    if (hiddenGen) msg += ' · ' + hiddenGen + ' generic hidden';
+    if (hiddenDisp) msg += ' · ' + hiddenDisp + ' disposed hidden';
+    count.textContent = msg;
+    syncUrl();
+  }
+  q.addEventListener('input', apply);
+  cat.addEventListener('change', apply);
+  gen.addEventListener('change', apply);
+  disp.addEventListener('change', apply);
+  sort.addEventListener('change', apply);
+  apply();
+</script>
+{% endblock %}

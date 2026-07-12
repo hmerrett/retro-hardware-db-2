@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ c.asset_id }} · {{ c.display_name }} — {{ config.site_title }}{% endblock %}
+{% block content %}
+<p class="back"><a href="{{ root }}index.html">← all items</a></p>
+
+{% if c.disposed %}<div class="disposed-banner">Disposed of — {{ c.disposed }}</div>{% endif %}
+
+<div class="item-head">
+  {% if c.images %}
+  <div class="gallery">
+    <img class="zoomable gmain" src="{{ root }}images/{{ c.images[0] }}" alt="{{ c.display_name }}">
+    {% if c.images|length > 1 %}
+    <div class="thumbs">
+      {% for img in c.images %}
+      <img class="gthumb{{ ' on' if loop.first else '' }}" src="{{ root }}images/{{ img }}" alt="{{ c.display_name }} photo {{ loop.index }}">
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}<img class="ph-lg" src="{{ root }}{{ c.placeholder }}" alt="computer">{% endif %}
+  <div>
+    <div class="aid">{{ c.asset_id }}</div>
+    <h2>{{ c.display_name }}</h2>
+    <p>
+      <span class="chip">computer</span>
+      {% if c.manufacturer %}<span class="chip">{{ c.manufacturer }}</span>{% endif %}
+      {% if c.year %}<span class="chip">{{ c.year }}</span>{% endif %}
+      {% if c.form_factor %}<span class="chip">{{ c.form_factor }}</span>{% endif %}
+    </p>
+    {% if c.summary %}<p>{{ c.summary }}</p>{% endif %}
+  </div>
+</div>
+
+{% if c.form_factor or c.chassis or c.cpu or c.installed_ram or c.drives or c.os %}
+<table class="specs">
+  {% if c.form_factor %}<tr><td class="k">Form factor</td><td>{{ c.form_factor }}</td></tr>{% endif %}
+  {% if c.chassis %}<tr><td class="k">Chassis</td><td>{{ c.chassis }}</td></tr>{% endif %}
+  {% if c.cpu %}<tr><td class="k">CPU</td><td>{{ c.cpu }}</td></tr>{% endif %}
+  {% if c.installed_ram %}<tr><td class="k">Installed RAM</td><td>{{ c.installed_ram }}</td></tr>{% endif %}
+  {% if c.drives %}<tr><td class="k">Drives</td><td>{{ c.drives }}</td></tr>{% endif %}
+  {% if c.os %}<tr><td class="k">Operating system</td><td>{{ c.os }}</td></tr>{% endif %}
+</table>
+{% endif %}
+
+<h3 class="sec">Build — {{ c.parts|length }} part{{ '' if c.parts|length == 1 else 's' }}</h3>
+{% if c.parts %}
+<div class="build">
+  {% for p in c.parts %}
+  <div class="prow">
+    <span class="pt">{{ p.type_label }}</span>
+    <span class="pn"><a href="{{ root }}items/{{ p.asset_id }}/">{{ p.display_name }}</a></span>
+    <span class="pid">{{ p.asset_id }}</span>
+    {% if p.url %}<a class="pid" href="{{ p.url }}">{{ p.url_label }} ↗</a>{% endif %}
+    {% if p.specs %}<span class="pspec">{{ p.specs }}</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="meta">No parts recorded yet. Add rows to parts.csv with computer_id = {{ c.asset_id }}.</p>
+{% endif %}
+
+<div class="meta">
+  {% if c.condition %}Condition: {{ c.condition }}{% endif %}
+  {% if c.source %} · Source: {{ c.source }}{% endif %}
+  {% if c.acquired_date %} · Acquired: {{ c.acquired_date }}{% endif %}
+</div>
+{% if c.notes %}<p class="meta">Notes: {{ c.notes }}</p>{% endif %}
+
+<div class="refs">
+  {% if c.url %}<a href="{{ c.url }}">{{ c.url_label }} ↗</a>{% endif %}
+</div>
+{% endblock %}

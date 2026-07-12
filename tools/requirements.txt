@@ -1,0 +1,6 @@
+requests>=2.31
+PyYAML>=6.0
+Jinja2>=3.1
+reportlab>=4.0
+segno>=1.6
+Pillow>=10.0
