@@ -122,6 +122,27 @@ RHDB_API=http://192.168.1.2:8000 ./publish.sh            # build + push + deploy
 RHDB_SITE_REPO=/path/to/retro-hardware-database ./publish.sh   # if not adjacent
 ```
 
+## Auth
+
+The API + GUI sit behind HTTP Basic auth when `RHDB_AUTH_USER` and
+`RHDB_AUTH_PASSWORD` are set in `.env`; leave them blank to run open on the LAN.
+Browsers prompt; the MCP server and the `tools/` scripts read the same two
+variables (the scripts also accept `auth_user`/`auth_password` in
+`tools/config.yml`) and send them automatically. Set them before exposing the
+service beyond the LAN.
+
+## Migrations
+
+Alembic owns the schema. On start the api runs `alembic upgrade head`
+(`api/entrypoint.sh`) — creating the tables on a fresh DB, or stamping a
+pre-Alembic DB to the baseline first so nothing is recreated. To change the
+schema: edit `api/app/models.py`, then
+
+```
+docker compose exec api alembic revision --autogenerate -m "describe change"
+docker compose exec api alembic upgrade head
+```
+
 ## Local dev without Docker/MariaDB
 
 The app falls back to SQLite if you set `DATABASE_URL`:
@@ -131,15 +152,11 @@ cd api && pip install -r requirements.txt
 DATABASE_URL=sqlite:///dev.db uvicorn app.main:app --reload
 ```
 
-## Status and what's next
+## Status
 
-Done: the DB, REST API + OpenAPI, re-runnable CSV migration, the **MCP server**,
-the **ported utilities** (`build_site` / `make_labels` / `import_report`) with
-API-driven GitHub Pages publishing, and the **bespoke GUI** (guided build walk,
-storage-kind routing, typed entry with the old quick-entry vocabularies, photo
-upload, label PDFs, disposed toggle, searchable index).
-
-Deferred until last / before exposing beyond the LAN:
-
-- **Alembic migrations** — schema is currently `create_all` on startup.
-- **Auth** — the API/GUI are open on the LAN; add auth before any wider exposure.
+All planned work is in place: the DB, REST API + OpenAPI, re-runnable CSV
+migration, the **MCP server**, the **ported utilities** (`build_site` /
+`make_labels` / `import_report`) with API-driven GitHub Pages publishing, the
+**bespoke GUI** (guided build walk, storage-kind routing, typed entry with the
+old quick-entry vocabularies, photo upload, label PDFs, disposed toggle,
+searchable index), **Alembic migrations**, and **HTTP Basic auth**.

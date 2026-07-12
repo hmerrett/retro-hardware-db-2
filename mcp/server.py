@@ -15,6 +15,11 @@ from mcp.server.fastmcp import FastMCP
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 
+# If the API requires HTTP Basic auth, forward the same credentials.
+_AUTH_USER = os.getenv("RHDB_AUTH_USER", "")
+_AUTH_PASS = os.getenv("RHDB_AUTH_PASSWORD", "")
+API_AUTH = (_AUTH_USER, _AUTH_PASS) if _AUTH_USER and _AUTH_PASS else None
+
 mcp = FastMCP(
     "retro-hardware",
     host=os.getenv("MCP_HOST", "0.0.0.0"),
@@ -23,7 +28,7 @@ mcp = FastMCP(
 
 
 def _client():
-    return httpx.Client(base_url=API_BASE_URL, timeout=30.0)
+    return httpx.Client(base_url=API_BASE_URL, timeout=30.0, auth=API_AUTH)
 
 
 def _request(method, path, *, params=None, json=None):

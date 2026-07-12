@@ -68,6 +68,15 @@ def api_base() -> str:
     return url.rstrip("/")
 
 
+def api_auth():
+    """HTTP Basic credentials for the API, if it requires them. From
+    RHDB_AUTH_USER / RHDB_AUTH_PASSWORD (env) or config; None if unset."""
+    cfg = load_config()
+    user = os.getenv("RHDB_AUTH_USER") or cfg.get("auth_user") or ""
+    pw = os.getenv("RHDB_AUTH_PASSWORD") or cfg.get("auth_password") or ""
+    return (user, pw) if user and pw else None
+
+
 def configured_images_dir():
     """A LOCAL photo dir if one is configured (RHDB_IMAGES or config images_dir)
     and it exists, else None -- in which case build_site pulls photos from the
@@ -84,7 +93,8 @@ def configured_images_dir():
 # --- HTTP / data access ----------------------------------------------------
 
 def _request(method, path, **kwargs):
-    resp = requests.request(method, f"{api_base()}{path}", timeout=TIMEOUT, **kwargs)
+    resp = requests.request(method, f"{api_base()}{path}", timeout=TIMEOUT,
+                            auth=api_auth(), **kwargs)
     if resp.status_code >= 400:
         raise RuntimeError(f"API {method} {path} -> {resp.status_code}: {resp.text}")
     return resp.json()
@@ -117,7 +127,7 @@ def image_manifest() -> list[str]:
 
 
 def download_image(rel: str, dest: Path) -> None:
-    resp = requests.get(f"{api_base()}/images/{rel}", timeout=TIMEOUT)
+    resp = requests.get(f"{api_base()}/images/{rel}", timeout=TIMEOUT, auth=api_auth())
     resp.raise_for_status()
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(resp.content)

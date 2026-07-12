@@ -9,7 +9,9 @@ Two surfaces over the same MariaDB:
 
 Interactive API docs live at /docs (OpenAPI).
 """
-import re
+import base64
+import os
+import secrets
 import shutil
 from pathlib import Path
 
@@ -20,18 +22,44 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from . import entry, labels
-from .db import Base, engine, get_db
+from .db import get_db
 from .ids import next_asset_id
 from .models import Computer, Part
 from .schemas import ComputerIn, ComputerOut, PartIn, PartOut
 
-Base.metadata.create_all(bind=engine)
+# Schema is owned by Alembic now (entrypoint.sh runs `alembic upgrade head` on
+# start); no create_all here.
 
-app = FastAPI(title="Retro Hardware Database API", version="0.2.0")
+app = FastAPI(title="Retro Hardware Database API", version="0.3.0")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 templates.env.globals.update(
     display_name=entry.display_name, type_label=entry.type_label,
     parse_specs=entry.parse_specs, TYPE_ORDER=entry.TYPE_ORDER)
+
+AUTH_USER = os.getenv("RHDB_AUTH_USER", "")
+AUTH_PASS = os.getenv("RHDB_AUTH_PASSWORD", "")
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    """Gate everything behind HTTP Basic when credentials are configured. Left
+    open (no env creds) for local dev; set RHDB_AUTH_USER/PASSWORD to require
+    auth before exposing beyond the LAN."""
+    if AUTH_USER and AUTH_PASS:
+        header = request.headers.get("authorization", "")
+        ok = False
+        if header.startswith("Basic "):
+            try:
+                u, _, p = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+                ok = (secrets.compare_digest(u, AUTH_USER)
+                      and secrets.compare_digest(p, AUTH_PASS))
+            except Exception:
+                ok = False
+        if not ok:
+            return Response("Authentication required", status_code=401, headers={
+                "WWW-Authenticate": 'Basic realm="Retro Hardware Database"'})
+    return await call_next(request)
+
 
 COMPUTER_FIELDS = [c.name for c in Computer.__table__.columns if c.name != "asset_id"]
 PART_FIELDS = [c.name for c in Part.__table__.columns if c.name != "asset_id"]

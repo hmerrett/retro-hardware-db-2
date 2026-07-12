@@ -21,6 +21,8 @@ services:
     environment:
       DATABASE_URL: mysql+pymysql://${DB_USER:-retro}:${DB_PASSWORD:-retro}@db:3306/${DB_NAME:-retro}
       RHDB_BASE_URL: ${RHDB_BASE_URL:-https://hmerrett.github.io/retro-hardware-database}
+      RHDB_AUTH_USER: ${RHDB_AUTH_USER:-}
+      RHDB_AUTH_PASSWORD: ${RHDB_AUTH_PASSWORD:-}
     ports:
       - "8000:8000"
     volumes:
@@ -34,6 +36,8 @@ services:
     restart: unless-stopped
     environment:
       API_BASE_URL: http://api:8000
+      RHDB_AUTH_USER: ${RHDB_AUTH_USER:-}
+      RHDB_AUTH_PASSWORD: ${RHDB_AUTH_PASSWORD:-}
     ports:
       - "8001:8001"
     depends_on:
