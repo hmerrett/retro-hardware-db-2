@@ -9,8 +9,9 @@ GUI), and a small server-rendered web GUI for day-to-day editing. Runs under
 docker-compose
 ├── db    MariaDB 11            (data volume: dbdata)
 ├── api   FastAPI + uvicorn     (http://localhost:8000)
-│         ├── /            web GUI (list / view / edit computers + parts)
+│         ├── /            guided web GUI (build walk, typed entry, photos, labels)
 │         ├── /api/...     JSON REST API  (computers, parts)
+│         ├── /images/...  uploaded photos (images volume)
 │         └── /docs        interactive OpenAPI docs
 └── mcp   MCP server            (http://localhost:8001/mcp)
           └── native list/get/create/update/delete tools over the REST API
@@ -123,8 +124,6 @@ RHDB_SITE_REPO=/path/to/retro-hardware-database ./publish.sh   # if not adjacent
 
 ## Local dev without Docker/MariaDB
 
-## Local dev without Docker/MariaDB
-
 The app falls back to SQLite if you set `DATABASE_URL`:
 
 ```
@@ -132,15 +131,15 @@ cd api && pip install -r requirements.txt
 DATABASE_URL=sqlite:///dev.db uvicorn app.main:app --reload
 ```
 
-## Status (v0) and what's next
+## Status and what's next
 
-v0 covers the DB, the REST API + OpenAPI, CSV migration, a minimal editing GUI,
-and an **MCP server** wrapping the REST API so Claude gets first-class tools.
-Planned next:
+Done: the DB, REST API + OpenAPI, re-runnable CSV migration, the **MCP server**,
+the **ported utilities** (`build_site` / `make_labels` / `import_report`) with
+API-driven GitHub Pages publishing, and the **bespoke GUI** (guided build walk,
+storage-kind routing, typed entry with the old quick-entry vocabularies, photo
+upload, label PDFs, disposed toggle, searchable index).
 
-- Port the utilities to the API: `build_site.py` (public static site + QR
-  labels), `make_labels.py` (DYMO), `import_report.py` (boot-disk HWiNFO/MSD).
-- Richer bespoke GUI: the guided build walk, storage-kind routing (hard disk →
-  part vs floppy/optical/CF-SD → the computer's `drives` field), label buttons,
-  photo upload, disposed toggle.
-- Alembic migrations; auth if it's exposed beyond the LAN.
+Deferred until last / before exposing beyond the LAN:
+
+- **Alembic migrations** — schema is currently `create_all` on startup.
+- **Auth** — the API/GUI are open on the LAN; add auth before any wider exposure.
