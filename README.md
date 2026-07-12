@@ -63,10 +63,10 @@ cutover without duplicates.
 `GET /api/parts?computer_id=RH-0010` and `?type=sound` filter. PATCH only changes
 the fields you send. Full schema + try-it-out at `/docs`.
 
-## MCP server (AI access)
+## MCP server
 
-The `mcp` service (in `mcp/`) is a thin wrapper over the REST API that gives an
-AI client native tools:
+The `mcp` service (in `mcp/`) is a thin wrapper over the REST API that exposes
+native tools over the Model Context Protocol:
 
 - `list_computers`, `get_computer`, `create_computer`, `update_computer`, `delete_computer`
 - `list_parts` (filter by `computer_id` / `type`), `get_part`, `create_part`, `update_part`, `delete_part`
@@ -75,17 +75,15 @@ It holds no data of its own — every call is an HTTP request to `api`, so the M
 server, the GUI and the ported scripts all read/write the same database. It
 speaks the streamable-HTTP transport on `:8001` and comes up with the stack.
 
-**Point Claude Code at it.** A project-scoped `.mcp.json` is committed at the
-repo root, so running `claude` in this directory offers the server for approval —
-accept it once and the tools are available. Equivalent CLI:
+Point any MCP client at the endpoint. A project-scoped `.mcp.json` is committed
+at the repo root, and the HTTP URL is:
 
 ```
-claude mcp add --transport http retro-hardware http://localhost:8001/mcp
+http://localhost:8001/mcp
 ```
 
-From another machine on the LAN, swap `localhost` for the host (e.g.
-`http://192.168.1.2:8001/mcp`). `create_*` assigns the next asset id; `update_*`
-only changes the fields you pass.
+From another machine, swap `localhost` for the host. `create_*` assigns the next
+asset id; `update_*` only changes the fields you pass.
 
 ## Ported utilities (`tools/`)
 

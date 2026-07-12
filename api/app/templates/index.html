@@ -67,8 +67,8 @@
       if (mode === 'oldest') return num(a) - num(b);
       if (mode === 'newest') return num(b) - num(a);
       if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
-      const ai = a.dataset.img === '1' ? 1 : 0, bi = b.dataset.img === '1' ? 1 : 0;
-      if (ai !== bi) return bi - ai;
+      const aImg = a.dataset.img === '1' ? 1 : 0, bImg = b.dataset.img === '1' ? 1 : 0;
+      if (aImg !== bImg) return bImg - aImg;
       return num(b) - num(a);
     });
     arr.forEach(el => grid.appendChild(el));

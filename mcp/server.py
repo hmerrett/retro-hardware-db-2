@@ -1,9 +1,10 @@
 """MCP server for the Retro Hardware Database.
 
-A thin wrapper over the REST API (the single source of truth) that gives an AI
-client native tools to list / get / create / update / delete computers and
-parts. It holds no data itself -- every tool call is an HTTP request to the API,
-so the MCP server, the GUI and the ported scripts all see exactly the same data.
+A thin wrapper over the REST API (the single source of truth) that exposes
+native tools to list / get / create / update / delete computers and parts over
+the Model Context Protocol. It holds no data itself -- every tool call is an HTTP
+request to the API, so the MCP server, the GUI and the ported scripts all see
+exactly the same data.
 
 Runs over the streamable-HTTP transport so it can live as its own always-on
 docker-compose service. Point a client at http://<host>:8001/mcp.
