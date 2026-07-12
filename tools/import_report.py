@@ -145,7 +145,8 @@ def detect_msd(text):
         return int(m.group()) if m else 0
 
     d = {}
-    for k, v in pairs:            # "Processor:" but not "Math Coprocessor:"
+    # "Processor:" but not "Math Coprocessor:"
+    for k, v in pairs:
         if "processor" in k and "co" not in k and has(v):
             d["cpu"] = clean(v)
             break
