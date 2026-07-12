@@ -4,8 +4,10 @@
   <h2 style="margin:0">Inventory</h2>
   <span class="muted">{{ n_computers }} computers · {{ n_parts }} parts</span>
   <span style="flex:1"></span>
-  <a class="btn primary" href="/computers/new">+ Computer</a>
-  <a class="btn" href="/parts/new">+ Part</a>
+  {% if request.state.authed %}
+    <a class="btn primary" href="/computers/new">+ Computer</a>
+    <a class="btn" href="/parts/new">+ Part</a>
+  {% endif %}
 </div>
 
 <div class="toolbar">

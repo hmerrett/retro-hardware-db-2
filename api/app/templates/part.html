@@ -7,15 +7,19 @@
   <span class="chip">{{ type_label(p.type) }}</span>
   <span class="muted">{{ p.asset_id }}</span>
   <span style="flex:1"></span>
-  <a class="btn sm" href="/parts/{{ p.asset_id }}/edit">edit</a>
-  <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
-  <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=0" target="_blank">full label</a>
+  {% if request.state.authed %}
+    <a class="btn sm" href="/parts/{{ p.asset_id }}/edit">edit</a>
+    <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
+    <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=0" target="_blank">full label</a>
+  {% endif %}
 </div>
 
 {% if p.disposed %}
 <div class="banner">Disposed — {{ p.disposed }}
+  {% if request.state.authed %}
   <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/restore">
     <button class="btn sm" type="submit">restore</button></form>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -33,6 +37,7 @@
     {% if images %}<img class="photo-main" src="/images/{{ images[0] }}" alt="{{ p.asset_id }}">
       {% if images|length > 1 %}<div class="thumbs">{% for img in images[1:] %}<img src="/images/{{ img }}">{% endfor %}</div>{% endif %}
     {% endif %}
+    {% if request.state.authed %}
     <form method="post" action="/parts/{{ p.asset_id }}/photo" enctype="multipart/form-data" style="margin-top:8px">
       <input type="file" name="photo" accept="image/*" required>
       <button class="btn sm" type="submit">upload photo</button>
@@ -42,6 +47,7 @@
       <input name="note" placeholder="disposed note / date" style="padding:4px 6px">
       <button class="btn sm" type="submit">mark disposed</button>
     </form>
+    {% endif %}
     {% endif %}
   </div>
 </div>

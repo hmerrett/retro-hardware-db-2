@@ -40,24 +40,47 @@ AUTH_USER = os.getenv("RHDB_AUTH_USER", "")
 AUTH_PASS = os.getenv("RHDB_AUTH_PASSWORD", "")
 
 
+def _valid_creds(request: Request) -> bool:
+    """True if the request carries the right HTTP Basic credentials -- or if auth
+    is disabled (no env creds), in which case everything is treated as allowed."""
+    if not (AUTH_USER and AUTH_PASS):
+        return True
+    header = request.headers.get("authorization", "")
+    if header.startswith("Basic "):
+        try:
+            u, _, p = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+            return (secrets.compare_digest(u, AUTH_USER)
+                    and secrets.compare_digest(p, AUTH_PASS))
+        except Exception:
+            return False
+    return False
+
+
+def _is_public_read(request: Request) -> bool:
+    """Anonymous visitors get read-only GETs: the gallery, item pages, photos and
+    static assets. Editing GETs (new/edit forms, labels), the JSON API and /docs
+    stay private, and every write (POST/PATCH/DELETE) requires login."""
+    if request.method != "GET":
+        return False
+    path = request.url.path
+    if path == "/" or path.startswith("/images/") or path.startswith("/static/"):
+        return True
+    if path.startswith("/computers/") or path.startswith("/parts/"):
+        if path.endswith("/new") or "/edit" in path or "/label.pdf" in path:
+            return False
+        return True
+    return False
+
+
 @app.middleware("http")
-async def basic_auth(request: Request, call_next):
-    """Gate everything behind HTTP Basic when credentials are configured. Left
-    open (no env creds) for local dev; set RHDB_AUTH_USER/PASSWORD to require
-    auth before exposing beyond the LAN."""
-    if AUTH_USER and AUTH_PASS:
-        header = request.headers.get("authorization", "")
-        ok = False
-        if header.startswith("Basic "):
-            try:
-                u, _, p = base64.b64decode(header[6:]).decode("utf-8").partition(":")
-                ok = (secrets.compare_digest(u, AUTH_USER)
-                      and secrets.compare_digest(p, AUTH_PASS))
-            except Exception:
-                ok = False
-        if not ok:
-            return Response("Authentication required", status_code=401, headers={
-                "WWW-Authenticate": 'Basic realm="Retro Hardware Database"'})
+async def auth_gate(request: Request, call_next):
+    """Public read-only browsing; login required to edit. request.state.authed
+    tells templates whether to show the editing controls."""
+    authed = _valid_creds(request)
+    request.state.authed = authed
+    if not authed and not _is_public_read(request):
+        return Response("Authentication required", status_code=401, headers={
+            "WWW-Authenticate": 'Basic realm="Retro Hardware Database"'})
     return await call_next(request)
 
 

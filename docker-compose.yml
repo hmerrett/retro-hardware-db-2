@@ -24,7 +24,7 @@ services:
       RHDB_AUTH_USER: ${RHDB_AUTH_USER:-}
       RHDB_AUTH_PASSWORD: ${RHDB_AUTH_PASSWORD:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - images:/app/images
     depends_on:
@@ -39,10 +39,25 @@ services:
       RHDB_AUTH_USER: ${RHDB_AUTH_USER:-}
       RHDB_AUTH_PASSWORD: ${RHDB_AUTH_PASSWORD:-}
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - api
 
 volumes:
   dbdata:
   images:
+  caddy_data:
+  caddy_config:

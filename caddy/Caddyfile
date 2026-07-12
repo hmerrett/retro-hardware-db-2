@@ -1,0 +1,7 @@
+{
+	email h@2600.me
+}
+
+db.2600.me {
+	reverse_proxy api:8000
+}

@@ -7,15 +7,22 @@ GUI), and a small server-rendered web GUI for day-to-day editing. Runs under
 
 ```
 docker-compose
-├── db    MariaDB 11            (data volume: dbdata)
-├── api   FastAPI + uvicorn     (http://localhost:8000)
-│         ├── /            guided web GUI (build walk, typed entry, photos, labels)
-│         ├── /api/...     JSON REST API  (computers, parts)
-│         ├── /images/...  uploaded photos (images volume)
-│         └── /docs        interactive OpenAPI docs
-└── mcp   MCP server            (http://localhost:8001/mcp)
-          └── native list/get/create/update/delete tools over the REST API
+├── caddy  reverse proxy + auto HTTPS   (:80 -> :443, https://db.2600.me)
+│          └── Let's Encrypt cert, proxies to api
+├── db     MariaDB 11                    (data volume: dbdata)
+├── api    FastAPI + uvicorn             (127.0.0.1:8000, public via caddy)
+│          ├── /            web GUI — public read-only; login to edit
+│          ├── /api/...     JSON REST API  (login required)
+│          ├── /images/...  uploaded photos (images volume)
+│          └── /docs        interactive OpenAPI docs (login required)
+└── mcp    MCP server                    (127.0.0.1:8001/mcp)
+           └── native list/get/create/update/delete tools over the REST API
 ```
+
+Public visitors browse the gallery and item pages read-only at
+**https://db.2600.me**; editing, uploads, the JSON API and `/docs` require the
+HTTP Basic login. Only Caddy (80/443) is internet-facing; the app and MCP bind
+to localhost and are reached through the proxy or on the box.
 
 Data model mirrors the CSV world: one shared asset register (`RH-0001`…) across
 two tables — `computers` and `parts` — where a part's `computer_id` softly links
@@ -122,14 +129,22 @@ RHDB_API=http://192.168.1.2:8000 ./publish.sh            # build + push + deploy
 RHDB_SITE_REPO=/path/to/retro-hardware-database ./publish.sh   # if not adjacent
 ```
 
-## Auth
+## Auth + HTTPS
 
-The API + GUI sit behind HTTP Basic auth when `RHDB_AUTH_USER` and
-`RHDB_AUTH_PASSWORD` are set in `.env`; leave them blank to run open on the LAN.
-Browsers prompt; the MCP server and the `tools/` scripts read the same two
-variables (the scripts also accept `auth_user`/`auth_password` in
-`tools/config.yml`) and send them automatically. Set them before exposing the
-service beyond the LAN.
+Reads are public, writes require a login. Anonymous visitors get read-only
+`GET`s (gallery, item pages, photos, static assets); the new/edit forms, label
+PDFs, every write (`POST`/`PATCH`/`DELETE`), the JSON API and `/docs` require
+HTTP Basic auth, set via `RHDB_AUTH_USER` / `RHDB_AUTH_PASSWORD` in `.env`
+(leave blank to disable auth entirely for local dev). The MCP server and the
+`tools/` scripts read the same two variables (scripts also accept
+`auth_user`/`auth_password` in `tools/config.yml`) and send them automatically.
+Editing controls only render once logged in.
+
+HTTPS is terminated by the `caddy` service, which obtains and auto-renews a
+Let's Encrypt certificate for the hostname in `caddy/Caddyfile` (`db.2600.me`)
+and reverse-proxies to the app. To use a different hostname, edit the Caddyfile
+and restart caddy; DNS must point at this host and ports 80/443 must be
+reachable for the ACME challenge.
 
 ## Migrations
 

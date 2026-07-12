@@ -6,19 +6,23 @@
   <h2 style="margin:0">{{ display_name({'name': c.name, 'manufacturer': c.manufacturer, 'model': c.model, 'asset_id': c.asset_id}) }}</h2>
   <span class="muted">{{ c.asset_id }}</span>
   <span style="flex:1"></span>
-  <a class="btn sm" href="/computers/{{ c.asset_id }}/edit">edit</a>
-  <a class="btn sm" href="/computers/{{ c.asset_id }}/label.pdf" target="_blank">label</a>
-  <a class="btn sm" href="/computers/{{ c.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
+  {% if request.state.authed %}
+    <a class="btn sm" href="/computers/{{ c.asset_id }}/edit">edit</a>
+    <a class="btn sm" href="/computers/{{ c.asset_id }}/label.pdf" target="_blank">label</a>
+    <a class="btn sm" href="/computers/{{ c.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
+  {% endif %}
 </div>
 
 {% if c.disposed %}
 <div class="banner">Disposed — {{ c.disposed }}
+  {% if request.state.authed %}
   <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/restore">
     <button class="btn sm" type="submit">restore</button></form>
+  {% endif %}
 </div>
 {% endif %}
 
-{% if build %}
+{% if build and request.state.authed %}
 <div class="build-banner">
   <strong>Build walk.</strong> Next: give it a motherboard below, then add its
   storage and expansion cards by category.
@@ -39,6 +43,7 @@
     {% if images %}<img class="photo-main" src="/images/{{ images[0] }}" alt="{{ c.asset_id }}">
       {% if images|length > 1 %}<div class="thumbs">{% for img in images[1:] %}<img src="/images/{{ img }}">{% endfor %}</div>{% endif %}
     {% endif %}
+    {% if request.state.authed %}
     <form method="post" action="/computers/{{ c.asset_id }}/photo" enctype="multipart/form-data" style="margin-top:8px">
       <input type="file" name="photo" accept="image/*" required>
       <button class="btn sm" type="submit">upload photo</button>
@@ -48,6 +53,7 @@
       <input name="note" placeholder="disposed note / date" style="padding:4px 6px">
       <button class="btn sm" type="submit">mark disposed</button>
     </form>
+    {% endif %}
     {% endif %}
   </div>
 </div>
@@ -61,6 +67,7 @@
        <span class="muted">{{ motherboard.specs }}</span></p>
   {% else %}
     <p class="muted">No motherboard linked yet.</p>
+    {% if request.state.authed %}
     <div class="toolbar">
       <a class="btn" href="/parts/new?type=motherboard&computer_id={{ c.asset_id }}">Create motherboard</a>
       {% if free_boards %}
@@ -72,6 +79,7 @@
       </form>
       {% endif %}
     </div>
+    {% endif %}
   {% endif %}
 </div>
 
@@ -80,6 +88,7 @@
   <div class="flex">
     <h3 style="margin:0">Parts <span class="muted">({{ parts|length }})</span></h3>
   </div>
+  {% if request.state.authed %}
   <div class="toolbar">
     <span class="muted">Add:</span>
     <a class="btn sm" href="/parts/new?type=storage&computer_id={{ c.asset_id }}">storage / drive</a>
@@ -90,6 +99,7 @@
     <a class="btn sm" href="/parts/new?type=ram&computer_id={{ c.asset_id }}">ram</a>
     <a class="btn sm" href="/parts/new?type=peripheral&computer_id={{ c.asset_id }}">peripheral</a>
   </div>
+  {% endif %}
   <table>
     <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th></tr>
     {% for p in parts %}
