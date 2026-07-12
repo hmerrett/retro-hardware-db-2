@@ -34,6 +34,14 @@
   .thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
   .thumbs img { height: 110px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
   .photo-main { max-width: 320px; max-height: 320px; border-radius: 10px; border: 1px solid var(--line); }
+  img.zoomable { cursor: zoom-in; }
+  #lightbox { position: fixed; inset: 0; background: #000000d8; display: none; align-items: center; justify-content: center; z-index: 1000; }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; box-shadow: 0 6px 40px #000; }
+  #lightbox button { position: absolute; background: #ffffff1a; color: #fff; border: none; cursor: pointer; user-select: none; border-radius: 8px; }
+  #lightbox .lb-nav { top: 50%; transform: translateY(-50%); font-size: 38px; padding: 6px 16px; }
+  #lightbox .lb-prev { left: 3vw; } #lightbox .lb-next { right: 3vw; }
+  #lightbox .lb-close { top: 3vh; right: 3vw; font-size: 30px; padding: 2px 12px; }
   .section { margin-top: 24px; }
   .flex { display: flex; align-items: baseline; gap: 12px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-top: 14px; }
@@ -58,5 +66,44 @@
   <a href="/docs">API docs</a>
 </header>
 <main>{% block content %}{% endblock %}</main>
+<div id="lightbox">
+  <button class="lb-close" title="Close (Esc)">×</button>
+  <button class="lb-nav lb-prev" title="Previous">‹</button>
+  <img alt="">
+  <button class="lb-nav lb-next" title="Next">›</button>
+</div>
+<script>
+  (function () {
+    const box = document.getElementById('lightbox');
+    const img = box.querySelector('img');
+    const prev = box.querySelector('.lb-prev');
+    const next = box.querySelector('.lb-next');
+    let list = [], idx = 0;
+    function show() {
+      img.src = list[idx];
+      const multi = list.length > 1;
+      prev.style.display = next.style.display = multi ? '' : 'none';
+    }
+    function close() { box.classList.remove('open'); img.src = ''; }
+    function step(d) { if (list.length) { idx = (idx + d + list.length) % list.length; show(); } }
+    const zoomables = document.querySelectorAll('img.zoomable');
+    zoomables.forEach((el, i) => el.addEventListener('click', () => {
+      list = Array.from(zoomables).map(x => x.dataset.full || x.src);
+      idx = i;
+      box.classList.add('open');
+      show();
+    }));
+    prev.addEventListener('click', e => { e.stopPropagation(); step(-1); });
+    next.addEventListener('click', e => { e.stopPropagation(); step(1); });
+    box.querySelector('.lb-close').addEventListener('click', close);
+    box.addEventListener('click', e => { if (e.target === box) close(); });
+    document.addEventListener('keydown', e => {
+      if (!box.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') step(-1);
+      else if (e.key === 'ArrowRight') step(1);
+    });
+  })();
+</script>
 </body>
 </html>
