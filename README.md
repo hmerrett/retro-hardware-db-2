@@ -29,14 +29,27 @@ two tables — `computers` and `parts` — where a part's `computer_id` softly l
 it to a computer (blank = standalone). CPU, RAM and floppy/optical/CF-SD drives
 are computer attributes; mechanical hard disks, tape and expansion cards are parts.
 
+A part's specifications are stored **relationally**, not as one text field:
+typed tables per part type (`motherboard_spec`, `cpu_spec`, `ram_spec`,
+`video_spec`, `sound_spec`, `network_spec`, `io_spec`, `storage_spec`), child
+tables for the list-shaped fields (`part_slot`, `part_ram_slot`, `part_port`)
+and `part_attribute` key/value rows for free-form types. `parts.specs` is kept
+as a denormalised `Key: value | …` cache, canonicalised and re-projected into
+those tables on every write (`app/specstruct.py` + `sync_part_specs`) — so you
+can query e.g. every board with a VLB slot, while the string stays available for
+search and labels.
+
 ## Quick start
 
 ```
-cp .env.example .env          # set DB_PASSWORD / DB_ROOT_PASSWORD
-docker compose up --build     # api on :8000, db on its volume
+cp .env.example .env
+docker compose up --build
 ```
 
-Open http://localhost:8000 (GUI) and http://localhost:8000/docs (API).
+Set the DB passwords in `.env`; optionally `RHDB_AUTH_USER` / `RHDB_AUTH_PASSWORD`
+(HTTP Basic login) and `RHDB_BASE_URL` (the hostname labels/QR encode). On the
+box the GUI is at http://localhost:8000 and docs at `/docs`; publicly it's served
+over HTTPS by Caddy — see **Auth + HTTPS**.
 
 ## Seed from the existing CSVs
 
@@ -102,11 +115,13 @@ export RHDB_API=http://192.168.1.2:8000        # or pass --api / edit config.yml
 
 - **`build_site.py`** — renders the public static site into `tools/site/` (one
   `items/<asset_id>/` page each, so QR codes already printed keep resolving).
-  Photos are read from `images_dir` (defaults to the old flat-file repo's
-  `images/` until the GUI owns photo storage — step 5).
+  Photos are pulled from the API's image store over HTTP by default (set a local
+  dir via `RHDB_IMAGES` / `--images` to build from files instead).
 - **`make_labels.py`** — print-ready label PDFs with a QR to the item's page;
   `--small`, `--auto` (computers → full+small, real parts → small), `--print`
-  (macOS/CUPS `lp`). QR encodes `<base_url>/items/<asset_id>/`.
+  (macOS/CUPS `lp`). QR encodes `<base_url>/items/<asset_id>/`, which the app
+  resolves to the right computer/part page (`base_url` defaults to
+  `https://db.2600.me`; the GUI also renders labels for download).
 - **`import_report.py`** — reads an HWiNFO/MSD boot-disk report from
   `tools/imports/<asset_id>.txt` and proposes CPU/OS (computer), BIOS/chipset/
   onboard-video/ports (its motherboard) and one storage part per detected drive.
@@ -156,6 +171,20 @@ docker compose exec api alembic revision --autogenerate -m "describe change"
 docker compose exec api alembic upgrade head
 ```
 
+## Backups
+
+The data lives in two docker volumes: `dbdata` (the database) and `images` (the
+photos). `tools/backup.sh` writes a timestamped DB dump + photo archive into
+`./backups` (override with `RHDB_BACKUP_DIR`):
+
+```
+tools/backup.sh
+```
+
+It dumps the database with `mariadb-dump` and tars the photos; restore
+instructions are in the script header. Copy `backups/` off-box (e.g. `scp`) for
+an off-site copy.
+
 ## Local dev without Docker/MariaDB
 
 The app falls back to SQLite if you set `DATABASE_URL`:
@@ -167,9 +196,18 @@ DATABASE_URL=sqlite:///dev.db uvicorn app.main:app --reload
 
 ## Status
 
-All planned work is in place: the DB, REST API + OpenAPI, re-runnable CSV
-migration, the **MCP server**, the **ported utilities** (`build_site` /
-`make_labels` / `import_report`) with API-driven GitHub Pages publishing, the
-**bespoke GUI** (guided build walk, storage-kind routing, typed entry with the
-old quick-entry vocabularies, photo upload, label PDFs, disposed toggle,
-searchable index), **Alembic migrations**, and **HTTP Basic auth**.
+Everything is in place:
+
+- **Database + REST API** (MariaDB, FastAPI, OpenAPI at `/docs`) with a
+  re-runnable CSV importer, and **relational spec tables** normalised out of the
+  old delimited `specs` field.
+- **MCP server** exposing the CRUD tools over the Model Context Protocol.
+- **Ported utilities** — `build_site` (static site), `make_labels` (DYMO PDFs),
+  `import_report` (HWiNFO/MSD) — all API-driven; `publish.sh` deploys the public
+  site, and new label QR codes resolve on `db.2600.me`.
+- **Bespoke GUI** — searchable thumbnail gallery, guided build walk, storage-kind
+  routing, typed entry with the old quick-entry vocabularies, photo upload with a
+  click-to-enlarge lightbox, label download, disposed toggle.
+- **Ops** — Alembic migrations (applied on start), `backup.sh`, HTTPS via Caddy
+  with a Let's Encrypt cert, and public read-only browsing with HTTP Basic login
+  required to edit.
