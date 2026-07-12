@@ -1,0 +1,30 @@
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-retro}
+      MARIADB_USER: ${DB_USER:-retro}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-retro}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpw}
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://${DB_USER:-retro}:${DB_PASSWORD:-retro}@db:3306/${DB_NAME:-retro}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:

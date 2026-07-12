@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ c.asset_id }} — Retro Hardware Database{% endblock %}
+{% block content %}
+<p><a href="/">&larr; all</a></p>
+<div style="display:flex;align-items:baseline;gap:12px">
+  <h2 style="margin:0">{{ c.name or (c.manufacturer ~ ' ' ~ c.model)|trim or c.asset_id }}</h2>
+  <span class="muted">{{ c.asset_id }}</span>
+  <a class="btn" href="/computers/{{ c.asset_id }}/edit">edit</a>
+</div>
+{% if c.disposed %}<p class="chip">Disposed — {{ c.disposed }}</p>{% endif %}
+<table>
+  {% for k, v in [('Manufacturer', c.manufacturer), ('Model', c.model), ('Year', c.year),
+                  ('Chassis', c.chassis), ('CPU', c.cpu), ('Installed RAM', c.installed_ram),
+                  ('Drives', c.drives), ('OS', c.os), ('Condition', c.condition),
+                  ('Source', c.source), ('Acquired', c.acquired_date), ('Notes', c.notes)] %}
+    {% if v %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endif %}
+  {% endfor %}
+  {% if c.url %}<tr><th>Reference</th><td><a href="{{ c.url }}">{{ c.url }}</a></td></tr>{% endif %}
+</table>
+
+<div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
+  <h3 style="margin:0">Parts <span class="muted">({{ parts|length }})</span></h3>
+  <a class="btn" href="/parts/new?computer_id={{ c.asset_id }}">+ part</a>
+</div>
+<table>
+  <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th><th></th></tr>
+  {% for p in parts %}
+  <tr>
+    <td>{{ p.asset_id }}</td>
+    <td>{{ p.type }}</td>
+    <td>{{ p.name or (p.manufacturer ~ ' ' ~ p.model)|trim or p.asset_id }}</td>
+    <td class="muted">{{ p.specs }}</td>
+    <td class="row-actions"><a href="/parts/{{ p.asset_id }}/edit">edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

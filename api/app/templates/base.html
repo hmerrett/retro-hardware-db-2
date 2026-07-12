@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Retro Hardware Database{% endblock %}</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; line-height: 1.5; }
+  header { padding: 12px 18px; border-bottom: 1px solid #8884; display: flex; gap: 14px; align-items: baseline; }
+  header a { text-decoration: none; }
+  header .brand { font-weight: 600; }
+  main { max-width: 1000px; margin: 0 auto; padding: 18px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-top: 1px solid #8884; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: #8a8a8a; font-weight: 500; font-size: 13px; }
+  .btn { display: inline-block; border: 1px solid #8886; border-radius: 7px; padding: 5px 11px; text-decoration: none; font-size: 14px; cursor: pointer; background: #8881; }
+  .row-actions a { font-size: 13px; margin-right: 8px; }
+  form.edit label { display: block; margin: 10px 0 3px; color: #8a8a8a; font-size: 13px; }
+  form.edit input, form.edit textarea { width: 100%; padding: 7px 8px; border: 1px solid #8886; border-radius: 6px; font: inherit; background: transparent; color: inherit; }
+  form.edit textarea { min-height: 60px; }
+  .muted { color: #8a8a8a; }
+  .chip { display: inline-block; background: #8882; border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">Retro Hardware Database</a>
+  <a href="/docs">API docs</a>
+</header>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

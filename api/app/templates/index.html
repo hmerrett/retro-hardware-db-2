@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:baseline;gap:12px">
+  <h2 style="margin:0">Computers <span class="muted">({{ computers|length }})</span></h2>
+  <a class="btn" href="/computers/new">+ computer</a>
+  <span class="muted">· {{ part_total }} parts</span>
+</div>
+<table>
+  <tr><th>Asset</th><th>Name</th><th>CPU</th><th>RAM</th><th>Parts</th><th></th></tr>
+  {% for c in computers %}
+  <tr>
+    <td><a href="/computers/{{ c.asset_id }}">{{ c.asset_id }}</a></td>
+    <td>{{ c.name or (c.manufacturer ~ ' ' ~ c.model)|trim or c.asset_id }}
+        {% if c.disposed %}<span class="chip">disposed</span>{% endif %}</td>
+    <td>{{ c.cpu }}</td>
+    <td>{{ c.installed_ram }}</td>
+    <td>{{ counts.get(c.asset_id, 0) }}</td>
+    <td class="row-actions"><a href="/computers/{{ c.asset_id }}/edit">edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+
+<div style="display:flex;align-items:baseline;gap:12px;margin-top:26px">
+  <h3 style="margin:0">Standalone parts <span class="muted">({{ standalone|length }})</span></h3>
+  <a class="btn" href="/parts/new">+ part</a>
+</div>
+<table>
+  <tr><th>Asset</th><th>Type</th><th>Name</th><th></th></tr>
+  {% for p in standalone %}
+  <tr>
+    <td>{{ p.asset_id }}</td>
+    <td>{{ p.type }}</td>
+    <td>{{ p.name or (p.manufacturer ~ ' ' ~ p.model)|trim or p.asset_id }}</td>
+    <td class="row-actions"><a href="/parts/{{ p.asset_id }}/edit">edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
