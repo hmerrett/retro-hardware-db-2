@@ -787,6 +787,16 @@ def gui_part_fetch_image(aid: str, db: Session = Depends(get_db)):
                             status_code=303)
 
 
+@app.post("/parts/{aid}/unlink", include_in_schema=False)
+async def gui_unlink_part(aid: str, request: Request, db: Session = Depends(get_db)):
+    p = get_or_404(db, Part, aid)
+    form = await request.form()
+    nxt = form.get("next", "") or f"/parts/{aid}"
+    p.computer_id = ""
+    db.commit()
+    return RedirectResponse(_safe_next(nxt), status_code=303)
+
+
 @app.post("/parts/{aid}/primary-photo", include_in_schema=False)
 async def gui_part_primary(aid: str, request: Request,
                            db: Session = Depends(get_db)):

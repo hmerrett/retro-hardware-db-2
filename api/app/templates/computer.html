@@ -80,9 +80,12 @@
 <div class="section">
   <h3 style="margin:0 0 6px">Motherboard</h3>
   {% if motherboard %}
-    <p><a href="/parts/{{ motherboard.asset_id }}">{{ motherboard.asset_id }}</a> —
+    <p><a href="/parts/{{ motherboard.asset_id }}">{{ motherboard.asset_id }}</a>
        {{ display_name({'name': motherboard.name, 'manufacturer': motherboard.manufacturer, 'model': motherboard.model, 'asset_id': motherboard.asset_id}) }}
-       <span class="muted">{{ motherboard.specs }}</span></p>
+       <span class="muted">{{ motherboard.specs }}</span>
+       {% if request.state.authed %}
+       <form class="inline-form" method="post" action="/parts/{{ motherboard.asset_id }}/unlink"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form>
+       {% endif %}</p>
   {% else %}
     <p class="muted">No motherboard linked yet.</p>
     {% if request.state.authed %}
@@ -119,13 +122,16 @@
   </div>
   {% endif %}
   <table>
-    <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th></tr>
+    <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
     {% for p in parts %}
     <tr>
       <td><a href="/parts/{{ p.asset_id }}">{{ p.asset_id }}</a></td>
       <td>{{ type_label(p.type) }}</td>
       <td>{{ display_name({'name': p.name, 'manufacturer': p.manufacturer, 'model': p.model, 'asset_id': p.asset_id}) }}{% if p.disposed %} <span class="chip">disposed</span>{% endif %}</td>
       <td class="muted">{{ p.specs }}</td>
+      {% if request.state.authed %}
+      <td><form method="post" action="/parts/{{ p.asset_id }}/unlink" style="margin:0"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form></td>
+      {% endif %}
     </tr>
     {% endfor %}
   </table>

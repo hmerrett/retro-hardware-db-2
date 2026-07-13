@@ -28,7 +28,10 @@
     {% for k, v in [('Manufacturer', p.manufacturer), ('Model', p.model), ('Year', p.year), ('Condition', p.condition), ('Source', p.source), ('Acquired', p.acquired_date)] %}
       {% if v %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endif %}
     {% endfor %}
-    {% if p.computer_id %}<tr><th>Installed in</th><td><a href="/computers/{{ p.computer_id }}">{{ p.computer_id }}</a></td></tr>{% endif %}
+    {% if p.computer_id %}<tr><th>Installed in</th><td><a href="/computers/{{ p.computer_id }}">{{ p.computer_id }}</a>
+      {% if request.state.authed %}
+      <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/unlink"><input type="hidden" name="next" value="/parts/{{ p.asset_id }}"><button class="btn sm" type="submit">unlink</button></form>
+      {% endif %}</td></tr>{% endif %}
     {% if p.disk_image %}<tr><th>Disk image</th><td>{{ p.disk_image }}</td></tr>{% endif %}
     {% if p.url %}<tr><th>Reference</th><td><a href="{{ p.url }}" target="_blank">{{ p.url }}</a></td></tr>{% endif %}
     {% if p.notes %}<tr><th>Notes</th><td>{{ p.notes }}</td></tr>{% endif %}
