@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from . import entry, labels, specstruct
+from . import enrich, entry, labels, specstruct
 from .db import get_db
 from .ids import next_asset_id
 from .models import (Computer, CpuSpec, IoSpec, MotherboardSpec, NetworkSpec,
@@ -335,12 +335,9 @@ def detect_images(kind, asset_id):
     return primary + [f"{kind}/{f.name}" for f in sorted(extras, key=sort_key)]
 
 
-def _save_photo(kind, asset_id, upload: UploadFile):
-    """Store an uploaded photo. The first becomes <asset_id>.<ext> (the primary);
-    later ones get the next free -N suffix so an item can carry several."""
-    ext = Path(upload.filename or "").suffix.lower() or ".jpg"
-    if ext not in IMAGE_EXTS:
-        raise HTTPException(400, f"unsupported image type: {ext}")
+def _photo_target(kind, asset_id, ext):
+    """Path for a new photo: <asset_id>.<ext> for the first (the primary), then
+    the next free -N suffix so an item can carry several."""
     folder = IMAGES_DIR / kind
     folder.mkdir(parents=True, exist_ok=True)
     existing = detect_images(kind, asset_id)
@@ -351,9 +348,28 @@ def _save_photo(kind, asset_id, upload: UploadFile):
         while any(Path(p).stem == f"{asset_id}-{n}" for p in existing):
             n += 1
         name = f"{asset_id}-{n}{ext}"
-    with open(folder / name, "wb") as f:
+    return folder / name, f"{kind}/{name}"
+
+
+def _save_photo(kind, asset_id, upload: UploadFile):
+    ext = Path(upload.filename or "").suffix.lower() or ".jpg"
+    if ext not in IMAGE_EXTS:
+        raise HTTPException(400, f"unsupported image type: {ext}")
+    path, rel = _photo_target(kind, asset_id, ext)
+    with open(path, "wb") as f:
         shutil.copyfileobj(upload.file, f)
-    return f"{kind}/{name}"
+    return rel
+
+
+def _fetch_reference_photo(kind, asset_id, url):
+    """Pull a photo from the item's reference URL (Wikipedia API or og:image),
+    store it, and return its relative path (or None if nothing was found)."""
+    data = enrich.fetch_jpeg(url)
+    if not data:
+        return None
+    path, rel = _photo_target(kind, asset_id, ".jpg")
+    path.write_bytes(data)
+    return rel
 
 
 # --- QR target: one stable /items/<id> URL for either kind ------------------
@@ -451,7 +467,7 @@ async def gui_create_computer(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/computers/{aid}", response_class=HTMLResponse, include_in_schema=False)
-def gui_computer(aid: str, request: Request, build: int = 0,
+def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
                  db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
     parts = db.query(Part).filter(Part.computer_id == aid).all()
@@ -467,7 +483,7 @@ def gui_computer(aid: str, request: Request, build: int = 0,
         "c": c, "parts": [p for p in parts if p is not motherboard],
         "motherboard": motherboard,
         "free_boards": free_boards, "images": detect_images("computers", aid),
-        "card_steps": entry.CARD_STEPS, "build": bool(build)})
+        "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr)})
 
 
 @app.get("/computers/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -535,6 +551,17 @@ async def gui_computer_photo(aid: str, photo: UploadFile = File(...),
         c.image = rel
         db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
+
+
+@app.post("/computers/{aid}/fetch-image", include_in_schema=False)
+def gui_computer_fetch_image(aid: str, db: Session = Depends(get_db)):
+    c = get_or_404(db, Computer, aid)
+    rel = _fetch_reference_photo("computers", aid, c.url or "") if c.url else None
+    if rel and not c.image:
+        c.image = rel
+        db.commit()
+    return RedirectResponse(f"/computers/{aid}" + ("" if rel else "?imgerr=1"),
+                            status_code=303)
 
 
 @app.get("/computers/{aid}/label.pdf", include_in_schema=False)
@@ -657,12 +684,13 @@ async def gui_create_part(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/parts/{aid}", response_class=HTMLResponse, include_in_schema=False)
-def gui_part(aid: str, request: Request, db: Session = Depends(get_db)):
+def gui_part(aid: str, request: Request, imgerr: int = 0,
+             db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     parent = db.get(Computer, p.computer_id) if p.computer_id else None
     return templates.TemplateResponse(request, "part.html", {
         "p": p, "parent": parent, "images": detect_images("parts", aid),
-        "spec_pairs": entry.parse_specs(p.specs)})
+        "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr)})
 
 
 @app.get("/parts/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -714,6 +742,17 @@ async def gui_part_photo(aid: str, photo: UploadFile = File(...),
         p.image = rel
         db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
+
+
+@app.post("/parts/{aid}/fetch-image", include_in_schema=False)
+def gui_part_fetch_image(aid: str, db: Session = Depends(get_db)):
+    p = get_or_404(db, Part, aid)
+    rel = _fetch_reference_photo("parts", aid, p.url or "") if p.url else None
+    if rel and not p.image:
+        p.image = rel
+        db.commit()
+    return RedirectResponse(f"/parts/{aid}" + ("" if rel else "?imgerr=1"),
+                            status_code=303)
 
 
 @app.get("/parts/{aid}/label.pdf", include_in_schema=False)

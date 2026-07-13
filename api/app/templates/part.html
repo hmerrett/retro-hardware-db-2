@@ -42,6 +42,12 @@
       <input type="file" name="photo" accept="image/*" required>
       <button class="btn sm" type="submit">upload photo</button>
     </form>
+    {% if p.url %}
+    <form method="post" action="/parts/{{ p.asset_id }}/fetch-image" style="margin-top:6px">
+      <button class="btn sm" type="submit">fetch photo from reference</button>
+    </form>
+    {% endif %}
+    {% if imgerr %}<p class="hint">No image found at the reference URL.</p>{% endif %}
     {% if not p.disposed %}
     <form method="post" action="/parts/{{ p.asset_id }}/dispose" style="margin-top:8px">
       <input name="note" placeholder="disposed note / date" style="padding:4px 6px">
