@@ -23,6 +23,8 @@
 </div>
 {% endif %}
 
+{% if p.summary %}<p class="summary">{{ p.summary }}</p>{% endif %}
+
 <div style="display:flex;gap:20px;flex-wrap:wrap">
   <table style="flex:1;min-width:280px">
     {% for k, v in [('Manufacturer', p.manufacturer), ('Model', p.model), ('Year', p.year), ('Condition', p.condition), ('Source', p.source), ('Acquired', p.acquired_date)] %}
