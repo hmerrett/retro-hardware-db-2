@@ -397,7 +397,8 @@ def gui_computer(aid: str, request: Request, build: int = 0,
                            (Part.computer_id == "") | (Part.computer_id.is_(None)))
                    .order_by(Part.asset_id).all())
     return templates.TemplateResponse(request, "computer.html", {
-        "c": c, "parts": parts, "motherboard": motherboard,
+        "c": c, "parts": [p for p in parts if p is not motherboard],
+        "motherboard": motherboard,
         "free_boards": free_boards, "images": detect_images("computers", aid),
         "card_steps": entry.CARD_STEPS, "build": bool(build)})
 
