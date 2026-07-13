@@ -565,12 +565,17 @@ def gui_restore_computer(aid: str, db: Session = Depends(get_db)):
 
 
 @app.post("/computers/{aid}/photo", include_in_schema=False)
-async def gui_computer_photo(aid: str, photo: UploadFile = File(...),
+async def gui_computer_photo(aid: str, photos: list[UploadFile] = File(...),
                              db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
-    rel = _save_photo("computers", aid, photo)
-    if not c.image:
-        c.image = rel
+    first = None
+    for up in photos:
+        if (up.filename or "").strip():
+            rel = _save_photo("computers", aid, up)
+            if first is None:
+                first = rel
+    if first and not c.image:
+        c.image = first
         db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -766,12 +771,17 @@ def gui_restore_part(aid: str, db: Session = Depends(get_db)):
 
 
 @app.post("/parts/{aid}/photo", include_in_schema=False)
-async def gui_part_photo(aid: str, photo: UploadFile = File(...),
+async def gui_part_photo(aid: str, photos: list[UploadFile] = File(...),
                          db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
-    rel = _save_photo("parts", aid, photo)
-    if not p.image:
-        p.image = rel
+    first = None
+    for up in photos:
+        if (up.filename or "").strip():
+            rel = _save_photo("parts", aid, up)
+            if first is None:
+                first = rel
+    if first and not p.image:
+        p.image = first
         db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 

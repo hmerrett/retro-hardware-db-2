@@ -54,8 +54,8 @@
     {% endif %}
     {% if request.state.authed %}
     <form method="post" action="/parts/{{ p.asset_id }}/photo" enctype="multipart/form-data" style="margin-top:8px">
-      <input type="file" name="photo" accept="image/*" required>
-      <button class="btn sm" type="submit">upload photo</button>
+      <input type="file" name="photos" accept="image/*" multiple required>
+      <button class="btn sm" type="submit">upload photo(s)</button>
     </form>
     {% if p.url %}
     <form method="post" action="/parts/{{ p.asset_id }}/fetch-image" style="margin-top:6px">
