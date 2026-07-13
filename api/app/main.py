@@ -293,7 +293,10 @@ def api_update_part(aid: str, data: PartIn, db: Session = Depends(get_db)):
 
 @app.delete("/api/parts/{aid}", tags=["parts"])
 def api_delete_part(aid: str, db: Session = Depends(get_db)):
-    db.delete(get_or_404(db, Part, aid))
+    obj = get_or_404(db, Part, aid)
+    db.query(Part).filter(Part.parent_id == aid).update(
+        {Part.parent_id: ""}, synchronize_session=False)
+    db.delete(obj)
     db.commit()
     return {"deleted": aid}
 
@@ -612,9 +615,9 @@ def gui_computer_label(aid: str, small: int = 0, db: Session = Depends(get_db)):
 
 # --- GUI: parts (guided, typed entry) --------------------------------------
 
-def _part_form_ctx(obj, ptype, computer_id):
+def _part_form_ctx(obj, ptype, computer_id, parent_id=""):
     return {
-        "p": obj, "ptype": ptype, "computer_id": computer_id,
+        "p": obj, "ptype": ptype, "computer_id": computer_id, "parent_id": parent_id,
         "spec_keys": dict(entry.parse_specs(obj.specs)) if obj else {},
         "conditions": entry.CONDITIONS,
         "vocab": {
@@ -631,8 +634,9 @@ def _part_form_ctx(obj, ptype, computer_id):
 
 
 @app.get("/parts/new", response_class=HTMLResponse, include_in_schema=False)
-def gui_new_part(request: Request, type: str = "other", computer_id: str = ""):
-    ctx = _part_form_ctx(None, type, computer_id)
+def gui_new_part(request: Request, type: str = "other", computer_id: str = "",
+                 parent_id: str = ""):
+    ctx = _part_form_ctx(None, type, computer_id, parent_id)
     ctx["title"] = f"New {entry.type_label(type)}"
     return templates.TemplateResponse(request, "part_form.html", ctx)
 
@@ -679,7 +683,8 @@ def _assemble_specs(ptype, form, existing=""):
 
 
 async def _part_from_form(form, ptype):
-    data = {"type": ptype, "computer_id": form.get("computer_id", "") or ""}
+    data = {"type": ptype, "computer_id": form.get("computer_id", "") or "",
+            "parent_id": form.get("parent_id", "") or ""}
     for f in ("manufacturer", "model", "name", "year", "condition", "source",
               "acquired_date", "url", "notes", "disk_image"):
         data[f] = form.get(f, "") or ""
@@ -716,7 +721,10 @@ async def gui_create_part(request: Request, db: Session = Depends(get_db)):
     db.flush()
     sync_part_specs(db, obj)
     db.commit()
-    dest = f"/computers/{computer_id}?build=1" if computer_id else f"/parts/{obj.asset_id}"
+    parent_id = form.get("parent_id", "") or ""
+    dest = (f"/computers/{computer_id}?build=1" if computer_id
+            else f"/parts/{parent_id}" if parent_id
+            else f"/parts/{obj.asset_id}")
     return RedirectResponse(dest, status_code=303)
 
 
@@ -725,15 +733,25 @@ def gui_part(aid: str, request: Request, imgerr: int = 0,
              db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     parent = db.get(Computer, p.computer_id) if p.computer_id else None
+    host = db.get(Part, p.parent_id) if p.parent_id else None
+    children = (db.query(Part).filter(Part.parent_id == aid)
+                .order_by(Part.asset_id).all())
+    candidates = []
+    if request.state.authed:
+        candidates = (db.query(Part)
+                      .filter(Part.type == "storage", Part.asset_id != aid,
+                              (Part.parent_id == "") | (Part.parent_id.is_(None)))
+                      .order_by(Part.asset_id).all())
     return templates.TemplateResponse(request, "part.html", {
-        "p": p, "parent": parent, "images": detect_images("parts", aid),
+        "p": p, "parent": parent, "host": host, "children": children,
+        "candidates": candidates, "images": detect_images("parts", aid),
         "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr)})
 
 
 @app.get("/parts/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
 def gui_edit_part(aid: str, request: Request, db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
-    ctx = _part_form_ctx(p, p.type or "other", p.computer_id or "")
+    ctx = _part_form_ctx(p, p.type or "other", p.computer_id or "", p.parent_id or "")
     ctx["title"] = f"Edit {aid}"
     return templates.TemplateResponse(request, "part_form.html", ctx)
 
@@ -805,6 +823,28 @@ async def gui_unlink_part(aid: str, request: Request, db: Session = Depends(get_
     p.computer_id = ""
     db.commit()
     return RedirectResponse(_safe_next(nxt), status_code=303)
+
+
+@app.post("/parts/{aid}/attach", include_in_schema=False)
+async def gui_attach_part(aid: str, request: Request, db: Session = Depends(get_db)):
+    """Mount another part onto this one (e.g. a hard disk on a controller card)."""
+    get_or_404(db, Part, aid)
+    form = await request.form()
+    child = get_or_404(db, Part, form.get("part_id", ""))
+    child.parent_id = aid
+    child.computer_id = ""
+    db.commit()
+    return RedirectResponse(f"/parts/{aid}", status_code=303)
+
+
+@app.post("/parts/{aid}/detach", include_in_schema=False)
+async def gui_detach_part(aid: str, request: Request, db: Session = Depends(get_db)):
+    p = get_or_404(db, Part, aid)
+    form = await request.form()
+    p.parent_id = ""
+    db.commit()
+    return RedirectResponse(_safe_next(form.get("next", "") or f"/parts/{aid}"),
+                            status_code=303)
 
 
 @app.post("/parts/{aid}/primary-photo", include_in_schema=False)

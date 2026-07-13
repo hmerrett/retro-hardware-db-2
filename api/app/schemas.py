@@ -30,6 +30,7 @@ class ComputerOut(ComputerIn):
 
 class PartIn(BaseModel):
     computer_id: str = ""
+    parent_id: str = ""
     type: str = ""
     manufacturer: str = ""
     model: str = ""

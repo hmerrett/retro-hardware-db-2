@@ -43,6 +43,7 @@ class Part(Base):
     __tablename__ = "parts"
     asset_id = Column(String(16), primary_key=True)
     computer_id = Column(String(16), index=True, default="")
+    parent_id = Column(String(16), index=True, default="")
     type = Column(String(32), default="")
     manufacturer = Column(String(255), default="")
     model = Column(String(255), default="")
