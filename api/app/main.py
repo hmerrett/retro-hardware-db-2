@@ -372,6 +372,28 @@ def _fetch_reference_photo(kind, asset_id, url):
     return rel
 
 
+def _set_primary_photo(kind, asset_id, rel):
+    """Promote one of an item's photos to the primary (the <asset_id>.<ext>
+    file shown in the gallery and as the main photo). The current primary is
+    demoted to the next free extra slot. Returns the new primary's path."""
+    if rel not in detect_images(kind, asset_id):
+        raise HTTPException(404, "no such photo for this item")
+    folder = IMAGES_DIR / kind
+    chosen = folder / Path(rel).name
+    if chosen.stem == asset_id:
+        return rel
+    for f in list(folder.iterdir()):
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTS and f.stem == asset_id:
+            n = 2
+            while (folder / f"{asset_id}-{n}{f.suffix}").exists():
+                n += 1
+            f.rename(folder / f"{asset_id}-{n}{f.suffix}")
+            break
+    new_primary = folder / f"{asset_id}{chosen.suffix}"
+    chosen.rename(new_primary)
+    return f"{kind}/{new_primary.name}"
+
+
 # --- QR target: one stable /items/<id> URL for either kind ------------------
 
 @app.get("/items/{aid}", include_in_schema=False)
@@ -564,6 +586,16 @@ def gui_computer_fetch_image(aid: str, db: Session = Depends(get_db)):
                             status_code=303)
 
 
+@app.post("/computers/{aid}/primary-photo", include_in_schema=False)
+async def gui_computer_primary(aid: str, request: Request,
+                               db: Session = Depends(get_db)):
+    c = get_or_404(db, Computer, aid)
+    form = await request.form()
+    c.image = _set_primary_photo("computers", aid, form.get("image", ""))
+    db.commit()
+    return RedirectResponse(f"/computers/{aid}", status_code=303)
+
+
 @app.get("/computers/{aid}/label.pdf", include_in_schema=False)
 def gui_computer_label(aid: str, small: int = 0, db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
@@ -753,6 +785,16 @@ def gui_part_fetch_image(aid: str, db: Session = Depends(get_db)):
         db.commit()
     return RedirectResponse(f"/parts/{aid}" + ("" if rel else "?imgerr=1"),
                             status_code=303)
+
+
+@app.post("/parts/{aid}/primary-photo", include_in_schema=False)
+async def gui_part_primary(aid: str, request: Request,
+                           db: Session = Depends(get_db)):
+    p = get_or_404(db, Part, aid)
+    form = await request.form()
+    p.image = _set_primary_photo("parts", aid, form.get("image", ""))
+    db.commit()
+    return RedirectResponse(f"/parts/{aid}", status_code=303)
 
 
 @app.get("/parts/{aid}/label.pdf", include_in_schema=False)

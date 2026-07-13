@@ -41,7 +41,19 @@
   </table>
   <div>
     {% if images %}<img class="photo-main zoomable" src="/images/{{ images[0] }}" alt="{{ c.asset_id }}">
-      {% if images|length > 1 %}<div class="thumbs">{% for img in images[1:] %}<img class="zoomable" src="/images/{{ img }}">{% endfor %}</div>{% endif %}
+      {% if images|length > 1 %}<div class="thumbs">
+        {% for img in images[1:] %}
+        <div class="thumb-item">
+          <img class="zoomable" src="/images/{{ img }}">
+          {% if request.state.authed %}
+          <form method="post" action="/computers/{{ c.asset_id }}/primary-photo">
+            <input type="hidden" name="image" value="{{ img }}">
+            <button class="btn sm" type="submit">make default</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>{% endif %}
     {% endif %}
     {% if request.state.authed %}
     <form method="post" action="/computers/{{ c.asset_id }}/photo" enctype="multipart/form-data" style="margin-top:8px">
