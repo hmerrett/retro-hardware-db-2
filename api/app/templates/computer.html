@@ -41,6 +41,67 @@
     {% endfor %}
     {% if c.url %}<tr><th>Reference</th><td><a href="{{ c.url }}" target="_blank">{{ c.url }}</a></td></tr>{% endif %}
     </table>
+
+    <!-- Motherboard: link an existing unlinked board, or create one now. -->
+    <div class="section">
+      <h3 style="margin:0 0 6px">Motherboard</h3>
+      {% if motherboard %}
+        <p><a href="/parts/{{ motherboard.asset_id }}">{{ motherboard.asset_id }}</a>
+           {{ display_name({'name': motherboard.name, 'manufacturer': motherboard.manufacturer, 'model': motherboard.model, 'asset_id': motherboard.asset_id}) }}
+           <span class="muted">{{ motherboard.specs }}</span>
+           {% if request.state.authed %}
+           <form class="inline-form" method="post" action="/parts/{{ motherboard.asset_id }}/unlink"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form>
+           {% endif %}</p>
+      {% else %}
+        <p class="muted">No motherboard linked yet.</p>
+        {% if request.state.authed %}
+        <div class="toolbar">
+          <a class="btn" href="/parts/new?type=motherboard&computer_id={{ c.asset_id }}">Create motherboard</a>
+          {% if free_boards %}
+          <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/link-motherboard">
+            <select name="part_id">
+              {% for b in free_boards %}<option value="{{ b.asset_id }}">{{ b.asset_id }} — {{ display_name({'name': b.name, 'manufacturer': b.manufacturer, 'model': b.model, 'asset_id': b.asset_id}) }}</option>{% endfor %}
+            </select>
+            <button class="btn" type="submit">Link existing board</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Add parts by category, plus storage (which routes hard disk/tape -> part). -->
+    <div class="section">
+      <div class="flex">
+        <h3 style="margin:0">Parts <span class="muted">({{ parts|length }})</span></h3>
+      </div>
+      {% if request.state.authed %}
+      <div class="toolbar">
+        <span class="muted">Add:</span>
+        <a class="btn sm" href="/parts/new?type=storage&computer_id={{ c.asset_id }}">storage / drive</a>
+        {% for ptype, label in card_steps %}
+          <a class="btn sm" href="/parts/new?type={{ ptype }}&computer_id={{ c.asset_id }}">{{ label }}</a>
+        {% endfor %}
+        <a class="btn sm" href="/parts/new?type=cpu&computer_id={{ c.asset_id }}">cpu</a>
+        <a class="btn sm" href="/parts/new?type=ram&computer_id={{ c.asset_id }}">ram</a>
+        <a class="btn sm" href="/parts/new?type=peripheral&computer_id={{ c.asset_id }}">peripheral</a>
+      </div>
+      {% endif %}
+      <table>
+        <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
+        {% for p in parts %}
+        <tr>
+          <td><a href="/parts/{{ p.asset_id }}">{{ p.asset_id }}</a></td>
+          <td>{{ type_label(p.type) }}</td>
+          <td>{{ display_name({'name': p.name, 'manufacturer': p.manufacturer, 'model': p.model, 'asset_id': p.asset_id}) }}{% if p.disposed %} <span class="chip">disposed</span>{% endif %}</td>
+          <td class="muted">{{ p.specs }}</td>
+          {% if request.state.authed %}
+          <td><form method="post" action="/parts/{{ p.asset_id }}/unlink" style="margin:0"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
   </div>
   <div class="photo-col">
     {% if images %}<img class="photo-main zoomable" src="/images/{{ images[0] }}" alt="{{ c.asset_id }}">
@@ -79,66 +140,5 @@
     </div>
     {% endif %}
   </div>
-</div>
-
-<!-- Motherboard: link an existing unlinked board, or create one now. -->
-<div class="section">
-  <h3 style="margin:0 0 6px">Motherboard</h3>
-  {% if motherboard %}
-    <p><a href="/parts/{{ motherboard.asset_id }}">{{ motherboard.asset_id }}</a>
-       {{ display_name({'name': motherboard.name, 'manufacturer': motherboard.manufacturer, 'model': motherboard.model, 'asset_id': motherboard.asset_id}) }}
-       <span class="muted">{{ motherboard.specs }}</span>
-       {% if request.state.authed %}
-       <form class="inline-form" method="post" action="/parts/{{ motherboard.asset_id }}/unlink"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form>
-       {% endif %}</p>
-  {% else %}
-    <p class="muted">No motherboard linked yet.</p>
-    {% if request.state.authed %}
-    <div class="toolbar">
-      <a class="btn" href="/parts/new?type=motherboard&computer_id={{ c.asset_id }}">Create motherboard</a>
-      {% if free_boards %}
-      <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/link-motherboard">
-        <select name="part_id">
-          {% for b in free_boards %}<option value="{{ b.asset_id }}">{{ b.asset_id }} — {{ display_name({'name': b.name, 'manufacturer': b.manufacturer, 'model': b.model, 'asset_id': b.asset_id}) }}</option>{% endfor %}
-        </select>
-        <button class="btn" type="submit">Link existing board</button>
-      </form>
-      {% endif %}
-    </div>
-    {% endif %}
-  {% endif %}
-</div>
-
-<!-- Add parts by category, plus storage (which routes hard disk/tape -> part). -->
-<div class="section">
-  <div class="flex">
-    <h3 style="margin:0">Parts <span class="muted">({{ parts|length }})</span></h3>
-  </div>
-  {% if request.state.authed %}
-  <div class="toolbar">
-    <span class="muted">Add:</span>
-    <a class="btn sm" href="/parts/new?type=storage&computer_id={{ c.asset_id }}">storage / drive</a>
-    {% for ptype, label in card_steps %}
-      <a class="btn sm" href="/parts/new?type={{ ptype }}&computer_id={{ c.asset_id }}">{{ label }}</a>
-    {% endfor %}
-    <a class="btn sm" href="/parts/new?type=cpu&computer_id={{ c.asset_id }}">cpu</a>
-    <a class="btn sm" href="/parts/new?type=ram&computer_id={{ c.asset_id }}">ram</a>
-    <a class="btn sm" href="/parts/new?type=peripheral&computer_id={{ c.asset_id }}">peripheral</a>
-  </div>
-  {% endif %}
-  <table>
-    <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
-    {% for p in parts %}
-    <tr>
-      <td><a href="/parts/{{ p.asset_id }}">{{ p.asset_id }}</a></td>
-      <td>{{ type_label(p.type) }}</td>
-      <td>{{ display_name({'name': p.name, 'manufacturer': p.manufacturer, 'model': p.model, 'asset_id': p.asset_id}) }}{% if p.disposed %} <span class="chip">disposed</span>{% endif %}</td>
-      <td class="muted">{{ p.specs }}</td>
-      {% if request.state.authed %}
-      <td><form method="post" action="/parts/{{ p.asset_id }}/unlink" style="margin:0"><input type="hidden" name="next" value="/computers/{{ c.asset_id }}"><button class="btn sm" type="submit">unlink</button></form></td>
-      {% endif %}
-    </tr>
-    {% endfor %}
-  </table>
 </div>
 {% endblock %}

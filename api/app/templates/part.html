@@ -42,6 +42,51 @@
     {% if p.url %}<tr><th>Reference</th><td><a href="{{ p.url }}" target="_blank">{{ p.url }}</a></td></tr>{% endif %}
     {% if p.notes %}<tr><th>Notes</th><td>{{ p.notes }}</td></tr>{% endif %}
     </table>
+
+    {% if spec_pairs %}
+    <div class="section">
+      <h3 style="margin:0 0 6px">Specs</h3>
+      <table>
+        {% for k, v in spec_pairs %}<tr><th>{{ k or '—' }}</th><td>{{ v }}</td></tr>{% endfor %}
+      </table>
+    </div>
+    {% endif %}
+
+    {% set build_host = request.state.authed and p.type in ('io', 'other') %}
+    {% if children or build_host %}
+    <div class="section">
+      <h3 style="margin:0 0 6px">Mounted parts <span class="muted">({{ children|length }})</span></h3>
+      {% if children %}
+      <table>
+        <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
+        {% for ch in children %}
+        <tr>
+          <td><a href="/parts/{{ ch.asset_id }}">{{ ch.asset_id }}</a></td>
+          <td>{{ type_label(ch.type) }}</td>
+          <td>{{ display_name({'name': ch.name, 'manufacturer': ch.manufacturer, 'model': ch.model, 'asset_id': ch.asset_id}) }}</td>
+          <td class="muted">{{ ch.specs }}</td>
+          {% if request.state.authed %}
+          <td><form method="post" action="/parts/{{ ch.asset_id }}/detach" style="margin:0"><input type="hidden" name="next" value="/parts/{{ p.asset_id }}"><button class="btn sm" type="submit">unmount</button></form></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="muted">Nothing mounted on this card yet.</p>{% endif %}
+      {% if build_host %}
+      <div class="toolbar">
+        <a class="btn sm" href="/parts/new?type=storage&parent_id={{ p.asset_id }}">add storage</a>
+        {% if candidates %}
+        <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/attach">
+          <select name="part_id">
+            {% for c in candidates %}<option value="{{ c.asset_id }}">{{ c.asset_id }} — {{ display_name({'name': c.name, 'manufacturer': c.manufacturer, 'model': c.model, 'asset_id': c.asset_id}) }}</option>{% endfor %}
+          </select>
+          <button class="btn sm" type="submit">mount existing storage</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="photo-col">
     {% if images %}<img class="photo-main zoomable" src="/images/{{ images[0] }}" alt="{{ p.asset_id }}">
@@ -81,49 +126,4 @@
     {% endif %}
   </div>
 </div>
-
-{% if spec_pairs %}
-<div class="section">
-  <h3 style="margin:0 0 6px">Specs</h3>
-  <table>
-    {% for k, v in spec_pairs %}<tr><th>{{ k or '—' }}</th><td>{{ v }}</td></tr>{% endfor %}
-  </table>
-</div>
-{% endif %}
-
-{% set build_host = request.state.authed and p.type in ('io', 'other') %}
-{% if children or build_host %}
-<div class="section">
-  <h3 style="margin:0 0 6px">Mounted parts <span class="muted">({{ children|length }})</span></h3>
-  {% if children %}
-  <table>
-    <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
-    {% for ch in children %}
-    <tr>
-      <td><a href="/parts/{{ ch.asset_id }}">{{ ch.asset_id }}</a></td>
-      <td>{{ type_label(ch.type) }}</td>
-      <td>{{ display_name({'name': ch.name, 'manufacturer': ch.manufacturer, 'model': ch.model, 'asset_id': ch.asset_id}) }}</td>
-      <td class="muted">{{ ch.specs }}</td>
-      {% if request.state.authed %}
-      <td><form method="post" action="/parts/{{ ch.asset_id }}/detach" style="margin:0"><input type="hidden" name="next" value="/parts/{{ p.asset_id }}"><button class="btn sm" type="submit">unmount</button></form></td>
-      {% endif %}
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="muted">Nothing mounted on this card yet.</p>{% endif %}
-  {% if build_host %}
-  <div class="toolbar">
-    <a class="btn sm" href="/parts/new?type=storage&parent_id={{ p.asset_id }}">add storage</a>
-    {% if candidates %}
-    <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/attach">
-      <select name="part_id">
-        {% for c in candidates %}<option value="{{ c.asset_id }}">{{ c.asset_id }} — {{ display_name({'name': c.name, 'manufacturer': c.manufacturer, 'model': c.model, 'asset_id': c.asset_id}) }}</option>{% endfor %}
-      </select>
-      <button class="btn sm" type="submit">mount existing storage</button>
-    </form>
-    {% endif %}
-  </div>
-  {% endif %}
-</div>
-{% endif %}
 {% endblock %}
