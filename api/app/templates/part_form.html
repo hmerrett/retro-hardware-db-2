@@ -134,6 +134,9 @@
     <input id="acquired_date" name="acquired_date" value="{{ (p.acquired_date if p else '') or '' }}" placeholder="YYYY-MM-DD">
     <label for="url">Reference URL</label>
     <input id="url" name="url" value="{{ (p.url if p else '') or '' }}">
+    <label for="summary">Summary</label>
+    <textarea id="summary" name="summary" style="min-height:90px">{{ (p.summary if p else '') or '' }}</textarea>
+    <p class="hint">the description shown at the top of the page</p>
     <label for="notes">Notes</label>
     <textarea id="notes" name="notes">{{ (p.notes if p else '') or '' }}</textarea>
   </fieldset>

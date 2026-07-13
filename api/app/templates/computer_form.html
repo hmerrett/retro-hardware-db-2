@@ -26,6 +26,9 @@
   {{ fld('source', 'Source', "where / how acquired") }}
   {{ fld('acquired_date', 'Acquired date', "YYYY-MM-DD") }}
   {{ fld('url', 'Reference URL', "Wikipedia, The Retro Web, …") }}
+  <label for="summary">Summary</label>
+  <textarea id="summary" name="summary" style="min-height:110px">{{ (c.summary if c else '') or '' }}</textarea>
+  <p class="hint">the description shown at the top of the page</p>
   <label for="notes">Notes</label>
   <textarea id="notes" name="notes">{{ (c.notes if c else '') or '' }}</textarea>
   <p style="margin-top:16px"><button class="btn primary" type="submit">Save</button></p>

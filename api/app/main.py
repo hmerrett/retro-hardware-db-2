@@ -686,7 +686,7 @@ async def _part_from_form(form, ptype):
     data = {"type": ptype, "computer_id": form.get("computer_id", "") or "",
             "parent_id": form.get("parent_id", "") or ""}
     for f in ("manufacturer", "model", "name", "year", "condition", "source",
-              "acquired_date", "url", "notes", "disk_image"):
+              "acquired_date", "url", "summary", "notes", "disk_image"):
         data[f] = form.get(f, "") or ""
     for f in ("manufacturer", "model"):
         data[f] = entry.deshout(data[f])
