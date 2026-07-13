@@ -8,3 +8,4 @@ python-multipart>=0.0.9
 reportlab>=4.0
 segno>=1.6
 alembic>=1.13
+itsdangerous>=2.1

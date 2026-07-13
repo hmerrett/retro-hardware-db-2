@@ -139,12 +139,14 @@ RHDB_SITE_REPO=/path/to/pages-repo ./publish.sh   (if not adjacent)
 
 Reads are public; writes need a login. Anonymous requests may GET the gallery,
 item pages, photos and static assets. The new and edit forms, label PDFs, all
-writes (POST, PATCH, DELETE), the JSON API and `/docs` require HTTP Basic auth,
-configured with `RHDB_AUTH_USER` and `RHDB_AUTH_PASSWORD` in `.env`. Leave both
-blank to run without auth for local development. The MCP server and the
-command-line tools read the same two variables (the tools also accept
-`auth_user` and `auth_password` in `tools/config.yml`) and send them
-automatically. Editing controls appear only when logged in.
+writes (POST, PATCH, DELETE), the JSON API and `/docs` require authentication,
+configured with `RHDB_AUTH_USER` and `RHDB_AUTH_PASSWORD` in `.env` (leave both
+blank to run without auth for local development). The browser signs in through a
+login page and gets a signed session cookie, with a log out button in the
+header. The JSON API and `/docs` also accept HTTP Basic, which is how the MCP
+server and command-line tools authenticate (the tools also accept `auth_user`
+and `auth_password` in `tools/config.yml`). The cookie is signed with
+`RHDB_SECRET_KEY`. Editing controls appear only when logged in.
 
 The `caddy` service terminates HTTPS. It obtains and renews a Let's Encrypt
 certificate for the hostname in `caddy/Caddyfile` (`db.2600.me`) and proxies to

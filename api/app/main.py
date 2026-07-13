@@ -10,13 +10,16 @@ Two surfaces over the same MariaDB:
 Interactive API docs live at /docs (OpenAPI).
 """
 import base64
+import hashlib
 import os
 import secrets
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -75,22 +78,42 @@ templates.env.globals.update(
 
 AUTH_USER = os.getenv("RHDB_AUTH_USER", "")
 AUTH_PASS = os.getenv("RHDB_AUTH_PASSWORD", "")
+AUTH_ENABLED = bool(AUTH_USER and AUTH_PASS)
+templates.env.globals["auth_enabled"] = AUTH_ENABLED
+
+# Signed-cookie session for the browser (the API/tools keep using HTTP Basic).
+SECRET_KEY = (os.getenv("RHDB_SECRET_KEY")
+              or hashlib.sha256(f"{AUTH_USER}:{AUTH_PASS}:rhdb".encode()).hexdigest())
+COOKIE = "rhdb_session"
+SESSION_MAX_AGE = 60 * 60 * 24 * 30
+_signer = URLSafeTimedSerializer(SECRET_KEY, salt="rhdb-session")
 
 
-def _valid_creds(request: Request) -> bool:
-    """True if the request carries the right HTTP Basic credentials -- or if auth
-    is disabled (no env creds), in which case everything is treated as allowed."""
-    if not (AUTH_USER and AUTH_PASS):
-        return True
+def _check_basic(request: Request) -> bool:
     header = request.headers.get("authorization", "")
-    if header.startswith("Basic "):
-        try:
-            u, _, p = base64.b64decode(header[6:]).decode("utf-8").partition(":")
-            return (secrets.compare_digest(u, AUTH_USER)
-                    and secrets.compare_digest(p, AUTH_PASS))
-        except Exception:
-            return False
-    return False
+    if not header.startswith("Basic "):
+        return False
+    try:
+        u, _, p = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+        return (secrets.compare_digest(u, AUTH_USER)
+                and secrets.compare_digest(p, AUTH_PASS))
+    except Exception:
+        return False
+
+
+def _check_cookie(request: Request) -> bool:
+    token = request.cookies.get(COOKIE)
+    if not token:
+        return False
+    try:
+        _signer.loads(token, max_age=SESSION_MAX_AGE)
+        return True
+    except (BadSignature, SignatureExpired):
+        return False
+
+
+def _is_api_path(path: str) -> bool:
+    return path.startswith("/api") or path.startswith("/docs") or path == "/openapi.json"
 
 
 def _is_public_read(request: Request) -> bool:
@@ -113,14 +136,58 @@ def _is_public_read(request: Request) -> bool:
 
 @app.middleware("http")
 async def auth_gate(request: Request, call_next):
-    """Public read-only browsing; login required to edit. request.state.authed
-    tells templates whether to show the editing controls."""
-    authed = _valid_creds(request)
-    request.state.authed = authed
-    if not authed and not _is_public_read(request):
-        return Response("Authentication required", status_code=401, headers={
-            "WWW-Authenticate": 'Basic realm="Retro Hardware Database"'})
+    """Public read-only browsing; login required to edit. Browsers use a session
+    cookie (login page + logout); the API and tools use HTTP Basic."""
+    path = request.url.path
+    api_path = _is_api_path(path)
+    # Browser paths trust the session cookie only, so logout is reliable; the API
+    # and docs also accept HTTP Basic for the MCP server and command-line tools.
+    request.state.authed = (not AUTH_ENABLED or _check_cookie(request)
+                            or (api_path and _check_basic(request)))
+    if path in ("/login", "/logout"):
+        return await call_next(request)
+    if not request.state.authed and not _is_public_read(request):
+        if api_path:
+            return Response("Authentication required", status_code=401, headers={
+                "WWW-Authenticate": 'Basic realm="Retro Hardware Database"'})
+        return RedirectResponse(f"/login?next={quote(path)}", status_code=303)
     return await call_next(request)
+
+
+def _safe_next(nxt: str) -> str:
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+
+
+@app.get("/login", response_class=HTMLResponse, include_in_schema=False)
+def gui_login(request: Request, next: str = "/"):
+    if request.state.authed:
+        return RedirectResponse(_safe_next(next), status_code=303)
+    return templates.TemplateResponse(request, "login.html",
+                                      {"next": _safe_next(next), "error": False})
+
+
+@app.post("/login", include_in_schema=False)
+async def gui_do_login(request: Request):
+    form = await request.form()
+    nxt = _safe_next(form.get("next", "/") or "/")
+    ok = (AUTH_ENABLED
+          and secrets.compare_digest(form.get("username", ""), AUTH_USER)
+          and secrets.compare_digest(form.get("password", ""), AUTH_PASS))
+    if not ok:
+        return templates.TemplateResponse(request, "login.html",
+                                          {"next": nxt, "error": True}, status_code=401)
+    resp = RedirectResponse(nxt, status_code=303)
+    resp.set_cookie(COOKIE, _signer.dumps("ok"), max_age=SESSION_MAX_AGE,
+                    httponly=True, samesite="lax",
+                    secure=request.headers.get("x-forwarded-proto") == "https")
+    return resp
+
+
+@app.post("/logout", include_in_schema=False)
+def gui_logout():
+    resp = RedirectResponse("/", status_code=303)
+    resp.delete_cookie(COOKIE)
+    return resp
 
 
 COMPUTER_FIELDS = [c.name for c in Computer.__table__.columns if c.name != "asset_id"]
