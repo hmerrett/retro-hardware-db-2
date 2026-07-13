@@ -23,10 +23,10 @@
 </div>
 {% endif %}
 
-{% if p.summary %}<p class="summary">{{ p.summary }}</p>{% endif %}
-
-<div style="display:flex;gap:20px;flex-wrap:wrap">
-  <table style="flex:1;min-width:280px">
+<div class="detail">
+  <div class="detail-main">
+    {% if p.summary %}<p class="summary">{{ p.summary }}</p>{% endif %}
+    <table>
     {% for k, v in [('Manufacturer', p.manufacturer), ('Model', p.model), ('Year', p.year), ('Condition', p.condition), ('Source', p.source), ('Acquired', p.acquired_date)] %}
       {% if v %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endif %}
     {% endfor %}
@@ -37,8 +37,9 @@
     {% if p.disk_image %}<tr><th>Disk image</th><td>{{ p.disk_image }}</td></tr>{% endif %}
     {% if p.url %}<tr><th>Reference</th><td><a href="{{ p.url }}" target="_blank">{{ p.url }}</a></td></tr>{% endif %}
     {% if p.notes %}<tr><th>Notes</th><td>{{ p.notes }}</td></tr>{% endif %}
-  </table>
-  <div>
+    </table>
+  </div>
+  <div class="photo-col">
     {% if images %}<img class="photo-main zoomable" src="/images/{{ images[0] }}" alt="{{ p.asset_id }}">
       {% if images|length > 1 %}<div class="thumbs">
         {% for img in images[1:] %}

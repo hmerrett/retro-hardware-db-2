@@ -60,7 +60,11 @@
   #lightbox .lb-nav { top: 50%; transform: translateY(-50%); font-size: 38px; padding: 6px 16px; }
   #lightbox .lb-prev { left: 3vw; } #lightbox .lb-next { right: 3vw; }
   #lightbox .lb-close { top: 3vh; right: 3vw; font-size: 30px; padding: 2px 12px; }
-  .summary { max-width: 780px; margin: 14px 0; }
+  .summary { margin: 4px 0 14px; }
+  .detail { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; align-items: start; margin-top: 6px; }
+  .detail-main { min-width: 0; }
+  .detail-main td { overflow-wrap: anywhere; }
+  @media (max-width: 720px) { .detail { grid-template-columns: 1fr; } }
   .section { margin-top: 24px; }
   .flex { display: flex; align-items: baseline; gap: 12px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-top: 14px; }
