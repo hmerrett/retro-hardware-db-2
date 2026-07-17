@@ -616,6 +616,13 @@ def gui_computer_label(aid: str, small: int = 0, db: Session = Depends(get_db)):
 # --- GUI: parts (guided, typed entry) --------------------------------------
 
 def _part_form_ctx(obj, ptype, computer_id, parent_id=""):
+    # Current counts for the motherboard grids, parsed from the existing specs.
+    mb_slots, mb_ram, mb_ports, mb_cpufams = {}, {}, {}, []
+    if obj and (obj.type or "") == "motherboard":
+        st = specstruct.parse("motherboard", obj.specs or "")
+        mb_slots, mb_ram, mb_ports = dict(st.slots), dict(st.ram_slots), dict(st.ports)
+        mb_cpufams = [x.strip() for x in (st.scalars.get("cpu_family") or "").split(",")
+                      if x.strip()]
     return {
         "p": obj, "ptype": ptype, "computer_id": computer_id, "parent_id": parent_id,
         "spec_keys": dict(entry.parse_specs(obj.specs)) if obj else {},
@@ -628,6 +635,9 @@ def _part_form_ctx(obj, ptype, computer_id, parent_id=""):
             "storage_kinds": entry.STORAGE_KINDS, "storage_protocols": entry.STORAGE_PROTOCOLS,
             "peripheral_interfaces": entry.PERIPHERAL_INTERFACES,
         },
+        "slot_names": entry.SLOT_NAMES, "port_names": entry.PORT_NAMES,
+        "mb_slots": mb_slots, "mb_ram": mb_ram, "mb_ports": mb_ports,
+        "mb_cpufams": mb_cpufams,
         "port_legend": entry.PORT_LEGEND,
         "type_labels": entry.TYPE_LABELS, "type_order": entry.TYPE_ORDER,
     }
@@ -641,10 +651,45 @@ def gui_new_part(request: Request, type: str = "other", computer_id: str = "",
     return templates.TemplateResponse(request, "part_form.html", ctx)
 
 
+def _counts_from_form(form, prefix, names):
+    """Read a grid of per-name number inputs (name='<prefix>:<n>') into
+    [(name, count), ...], skipping zeros/blanks."""
+    out = []
+    for name in names:
+        raw = (form.get(f"{prefix}:{name}", "") or "").strip()
+        try:
+            n = int(raw)
+        except ValueError:
+            n = 0
+        if n > 0:
+            out.append((name, n))
+    return out
+
+
+def _assemble_motherboard_specs(form):
+    """Build a motherboard's specs from the structured grids (slot/RAM/port
+    counts and CPU-family checkboxes) plus the plain text fields."""
+    pairs = [("Chipset", (form.get("spec_chipset", "") or "").strip()),
+             ("CPU family", ", ".join(form.getlist("cpufam"))),
+             ("Form factor", (form.get("spec_form_factor", "") or "").strip()),
+             ("RAM slots", entry.format_counts(
+                 _counts_from_form(form, "ram", entry.RAM_SLOT_TYPES))),
+             ("Slots", entry.format_counts(
+                 _counts_from_form(form, "slot", entry.SLOT_NAMES))),
+             ("Cache", (form.get("spec_cache", "") or "").strip()),
+             ("BIOS", (form.get("spec_bios", "") or "").strip()),
+             ("Onboard video", (form.get("spec_onboard_video", "") or "").strip()),
+             ("Ports", entry.format_counts(
+                 _counts_from_form(form, "port", entry.PORT_NAMES)))]
+    return entry.build_specs(pairs)
+
+
 def _assemble_specs(ptype, form, existing=""):
     """Build a part's specs string from the typed form fields, running the same
     quick-entry expanders as add.py. Spec keys the form doesn't manage (rare, on
     edit) are preserved."""
+    if ptype == "motherboard":
+        return _assemble_motherboard_specs(form)
     managed = {
         "motherboard": ["Chipset", "CPU family", "Form factor", "RAM slots",
                         "Slots", "Cache", "BIOS", "Onboard video", "Ports"],

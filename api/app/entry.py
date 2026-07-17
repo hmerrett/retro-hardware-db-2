@@ -172,6 +172,12 @@ PORT_CODES = [("I", "IDE"), ("C", "SCSI"), ("A", "SATA"), ("M", "MFM"),
               ("D", "DIN keyboard"), ("U", "USB")]
 
 PORT_LEGEND = " ".join(f"{ltr}={name}" for ltr, name in PORT_CODES)
+PORT_NAMES = [name for _, name in PORT_CODES]
+
+
+def format_counts(items) -> str:
+    """[(name, n), ...] -> 'n× name, ...' (the canonical count-list rendering)."""
+    return ", ".join(f"{n}× {name}" if n and n > 1 else name for name, n in items)
 
 
 def expand_ports(code: str) -> str:

@@ -71,14 +71,34 @@
   <fieldset>
     <legend>Motherboard</legend>
     {{ sf('spec_chipset', 'Chipset', 'Chipset', 'e.g. Intel 430FX, OPTi 495') }}
-    {{ sf('spec_cpu_family', 'CPU family', 'CPU family', 'comma-separate several', 'dl_cpu_families') }}
+    <label>CPU family <span class="muted">(tick all that fit)</span></label>
+    <div class="checks">
+      {% for fam in vocab.cpu_families %}
+      <label><input type="checkbox" name="cpufam" value="{{ fam }}"{{ ' checked' if fam in mb_cpufams else '' }}> {{ fam }}</label>
+      {% endfor %}
+    </div>
     {{ sf('spec_form_factor', 'Form factor', 'Form factor', "the computer's form factor is taken from here", 'dl_form_factors') }}
-    {{ sf('spec_ram_slots', 'RAM slots', 'RAM slots', 'e.g. 4x 72-pin SIMM') }}
-    {{ sf('spec_slots', 'Slots', 'Expansion slots', "quick entry: 8I:2 16I:6 VLB:1 PCI:3") }}
+    <label>RAM slots <span class="muted">(how many of each)</span></label>
+    <div class="countgrid">
+      {% for t in vocab.ram_slots %}
+      <label>{{ t }} <input type="number" min="0" name="ram:{{ t }}" value="{{ mb_ram.get(t, '') }}"></label>
+      {% endfor %}
+    </div>
+    <label>Expansion slots <span class="muted">(how many of each)</span></label>
+    <div class="countgrid">
+      {% for b in slot_names %}
+      <label>{{ b }} <input type="number" min="0" name="slot:{{ b }}" value="{{ mb_slots.get(b, '') }}"></label>
+      {% endfor %}
+    </div>
     {{ sf('spec_cache', 'Cache', 'Cache', 'e.g. 256 KB, COAST socket') }}
     {{ sf('spec_bios', 'BIOS', 'BIOS', 'e.g. AMI 1992, Award 4.51') }}
     {{ sf('spec_onboard_video', 'Onboard video', 'Onboard video', 'e.g. VGA, or VGA C&T 65545') }}
-    {{ sf('spec_ports', 'Ports', 'Onboard I/O ports', 'letters — ' + port_legend + ' (e.g. IFSKO)') }}
+    <label>Onboard I/O ports <span class="muted">(how many of each)</span></label>
+    <div class="countgrid">
+      {% for pt in port_names %}
+      <label>{{ pt }} <input type="number" min="0" name="port:{{ pt }}" value="{{ mb_ports.get(pt, '') }}"></label>
+      {% endfor %}
+    </div>
   </fieldset>
 
   {% elif ptype == 'cpu' %}
