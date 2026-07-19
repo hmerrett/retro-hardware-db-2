@@ -14,6 +14,7 @@ import hashlib
 import os
 import secrets
 import shutil
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -27,9 +28,9 @@ from sqlalchemy.orm import Session
 from . import enrich, entry, labels, specstruct
 from .db import get_db
 from .ids import next_asset_id
-from .models import (Computer, CpuSpec, IoSpec, MotherboardSpec, NetworkSpec,
-                     Part, PartAttribute, PartPort, PartRamSlot, PartSlot,
-                     RamSpec, SoundSpec, StorageSpec, VideoSpec)
+from .models import (Computer, CpuSpec, IoSpec, LogEntry, MotherboardSpec,
+                     NetworkSpec, Part, PartAttribute, PartPort, PartRamSlot,
+                     PartSlot, RamSpec, SoundSpec, StorageSpec, VideoSpec)
 from .schemas import ComputerIn, ComputerOut, PartIn, PartOut
 
 # Which typed spec table backs each part type.
@@ -213,6 +214,32 @@ def to_dict(obj):
     return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
 
 
+def add_log(db, asset_id, message, kind="change"):
+    """Record a dated history entry for an asset. The caller commits."""
+    if not message:
+        return
+    db.add(LogEntry(asset_id=asset_id, created_at=datetime.utcnow(),
+                    kind=kind, message=message))
+
+
+def item_log(db, asset_id):
+    return (db.query(LogEntry).filter(LogEntry.asset_id == asset_id)
+            .order_by(LogEntry.created_at.desc(), LogEntry.id.desc()).all())
+
+
+def _changed(old, new, keys, semantic_specs=False):
+    """Which fields changed (specs compared as a set of pairs, so re-canonicalising
+    an unchanged specs string is not logged as a change)."""
+    out = []
+    for k in keys:
+        if semantic_specs and k == "specs":
+            if set(entry.parse_specs(old.get(k) or "")) != set(entry.parse_specs(new.get(k) or "")):
+                out.append(k)
+        elif (old.get(k) or "") != (new.get(k) or ""):
+            out.append(k)
+    return out
+
+
 # --- JSON API: computers ---------------------------------------------------
 
 @app.get("/api/computers", response_model=list[ComputerOut], tags=["computers"])
@@ -224,6 +251,7 @@ def api_list_computers(db: Session = Depends(get_db)):
 def api_create_computer(data: ComputerIn, db: Session = Depends(get_db)):
     obj = Computer(asset_id=next_asset_id(db), **data.model_dump())
     db.add(obj)
+    add_log(db, obj.asset_id, "created", "created")
     db.commit()
     db.refresh(obj)
     return obj
@@ -237,8 +265,13 @@ def api_get_computer(aid: str, db: Session = Depends(get_db)):
 @app.patch("/api/computers/{aid}", response_model=ComputerOut, tags=["computers"])
 def api_update_computer(aid: str, data: ComputerIn, db: Session = Depends(get_db)):
     obj = get_or_404(db, Computer, aid)
-    for k, v in data.model_dump(exclude_unset=True).items():
+    fields = data.model_dump(exclude_unset=True)
+    old = {k: getattr(obj, k) for k in fields}
+    for k, v in fields.items():
         setattr(obj, k, v)
+    changed = _changed(old, fields, fields)
+    if changed:
+        add_log(db, aid, "edited: " + ", ".join(changed))
     db.commit()
     db.refresh(obj)
     return obj
@@ -246,7 +279,9 @@ def api_update_computer(aid: str, data: ComputerIn, db: Session = Depends(get_db
 
 @app.delete("/api/computers/{aid}", tags=["computers"])
 def api_delete_computer(aid: str, db: Session = Depends(get_db)):
-    db.delete(get_or_404(db, Computer, aid))
+    obj = get_or_404(db, Computer, aid)
+    db.query(LogEntry).filter(LogEntry.asset_id == aid).delete(synchronize_session=False)
+    db.delete(obj)
     db.commit()
     return {"deleted": aid}
 
@@ -270,6 +305,7 @@ def api_create_part(data: PartIn, db: Session = Depends(get_db)):
     db.add(obj)
     db.flush()
     sync_part_specs(db, obj)
+    add_log(db, obj.asset_id, "created", "created")
     db.commit()
     db.refresh(obj)
     return obj
@@ -283,9 +319,15 @@ def api_get_part(aid: str, db: Session = Depends(get_db)):
 @app.patch("/api/parts/{aid}", response_model=PartOut, tags=["parts"])
 def api_update_part(aid: str, data: PartIn, db: Session = Depends(get_db)):
     obj = get_or_404(db, Part, aid)
-    for k, v in data.model_dump(exclude_unset=True).items():
+    fields = data.model_dump(exclude_unset=True)
+    old = {k: getattr(obj, k) for k in fields}
+    for k, v in fields.items():
         setattr(obj, k, v)
     sync_part_specs(db, obj)
+    new = {k: getattr(obj, k) for k in fields}
+    changed = _changed(old, new, fields, semantic_specs=True)
+    if changed:
+        add_log(db, aid, "edited: " + ", ".join(changed))
     db.commit()
     db.refresh(obj)
     return obj
@@ -296,9 +338,16 @@ def api_delete_part(aid: str, db: Session = Depends(get_db)):
     obj = get_or_404(db, Part, aid)
     db.query(Part).filter(Part.parent_id == aid).update(
         {Part.parent_id: ""}, synchronize_session=False)
+    db.query(LogEntry).filter(LogEntry.asset_id == aid).delete(synchronize_session=False)
     db.delete(obj)
     db.commit()
     return {"deleted": aid}
+
+
+@app.get("/api/items/{aid}/log", tags=["log"])
+def api_item_log(aid: str, db: Session = Depends(get_db)):
+    return [{"created_at": e.created_at.isoformat() if e.created_at else None,
+             "kind": e.kind, "message": e.message} for e in item_log(db, aid)]
 
 
 # --- images: manifest (for build_site over the network) --------------------
@@ -486,6 +535,7 @@ async def gui_create_computer(request: Request, db: Session = Depends(get_db)):
         data[f] = entry.deshout(data[f])
     obj = Computer(asset_id=next_asset_id(db), **data)
     db.add(obj)
+    add_log(db, obj.asset_id, "created", "created")
     db.commit()
     # Land on the build walk so the next step (motherboard) is front and centre.
     return RedirectResponse(f"/computers/{obj.asset_id}?build=1", status_code=303)
@@ -508,7 +558,8 @@ def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
         "c": c, "parts": [p for p in parts if p is not motherboard],
         "motherboard": motherboard,
         "free_boards": free_boards, "images": detect_images("computers", aid),
-        "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr)})
+        "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr),
+        "log": item_log(db, aid)})
 
 
 @app.get("/computers/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -522,6 +573,7 @@ def gui_edit_computer(aid: str, request: Request, db: Session = Depends(get_db))
 async def gui_save_computer(aid: str, request: Request, db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
     form = await request.form()
+    old = {k: getattr(c, k) for k in COMPUTER_FIELDS}
     for k in COMPUTER_FIELDS:
         if k not in form:
             continue
@@ -531,6 +583,9 @@ async def gui_save_computer(aid: str, request: Request, db: Session = Depends(ge
         elif k in ("manufacturer", "model"):
             v = entry.deshout(v)
         setattr(c, k, v)
+    changed = _changed(old, {k: getattr(c, k) for k in COMPUTER_FIELDS}, COMPUTER_FIELDS)
+    if changed:
+        add_log(db, aid, "edited: " + ", ".join(changed))
     db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -545,6 +600,8 @@ async def gui_link_motherboard(aid: str, request: Request,
     if board.type != "motherboard":
         raise HTTPException(400, f"{pid} is not a motherboard")
     board.computer_id = aid
+    add_log(db, aid, f"linked motherboard {board.asset_id}")
+    add_log(db, board.asset_id, f"linked to computer {aid}")
     db.commit()
     return RedirectResponse(f"/computers/{aid}?build=1", status_code=303)
 
@@ -555,6 +612,7 @@ async def gui_dispose_computer(aid: str, request: Request,
     c = get_or_404(db, Computer, aid)
     form = await request.form()
     c.disposed = form.get("note", "") or "disposed"
+    add_log(db, aid, f"marked disposed: {c.disposed}")
     db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -563,6 +621,16 @@ async def gui_dispose_computer(aid: str, request: Request,
 def gui_restore_computer(aid: str, db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
     c.disposed = ""
+    add_log(db, aid, "restored")
+    db.commit()
+    return RedirectResponse(f"/computers/{aid}", status_code=303)
+
+
+@app.post("/computers/{aid}/note", include_in_schema=False)
+async def gui_computer_note(aid: str, request: Request, db: Session = Depends(get_db)):
+    get_or_404(db, Computer, aid)
+    form = await request.form()
+    add_log(db, aid, (form.get("message", "") or "").strip(), kind="note")
     db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -572,14 +640,18 @@ async def gui_computer_photo(aid: str, photos: list[UploadFile] = File(...),
                              db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
     first = None
+    n = 0
     for up in photos:
         if (up.filename or "").strip():
             rel = _save_photo("computers", aid, up)
+            n += 1
             if first is None:
                 first = rel
     if first and not c.image:
         c.image = first
-        db.commit()
+    if n:
+        add_log(db, aid, f"added {n} photo(s)")
+    db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
 
@@ -587,8 +659,10 @@ async def gui_computer_photo(aid: str, photos: list[UploadFile] = File(...),
 def gui_computer_fetch_image(aid: str, db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
     rel = _fetch_reference_photo("computers", aid, c.url or "") if c.url else None
-    if rel and not c.image:
-        c.image = rel
+    if rel:
+        if not c.image:
+            c.image = rel
+        add_log(db, aid, "fetched a photo from the reference")
         db.commit()
     return RedirectResponse(f"/computers/{aid}" + ("" if rel else "?imgerr=1"),
                             status_code=303)
@@ -600,6 +674,7 @@ async def gui_computer_primary(aid: str, request: Request,
     c = get_or_404(db, Computer, aid)
     form = await request.form()
     c.image = _set_primary_photo("computers", aid, form.get("image", ""))
+    add_log(db, aid, "changed the default photo")
     db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -765,6 +840,7 @@ async def gui_create_part(request: Request, db: Session = Depends(get_db)):
     db.add(obj)
     db.flush()
     sync_part_specs(db, obj)
+    add_log(db, obj.asset_id, "created", "created")
     db.commit()
     parent_id = form.get("parent_id", "") or ""
     dest = (f"/computers/{computer_id}?build=1" if computer_id
@@ -790,7 +866,8 @@ def gui_part(aid: str, request: Request, imgerr: int = 0,
     return templates.TemplateResponse(request, "part.html", {
         "p": p, "parent": parent, "host": host, "children": children,
         "candidates": candidates, "images": detect_images("parts", aid),
-        "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr)})
+        "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr),
+        "log": item_log(db, aid)})
 
 
 @app.get("/parts/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -809,9 +886,13 @@ async def gui_save_part(aid: str, request: Request, db: Session = Depends(get_db
     data = await _part_from_form(form, ptype)
     if ptype == "storage" and (form.get("kind", "") or ""):
         data["specs"] = entry.merge_spec(data["specs"], "Kind", form.get("kind"))
+    old = {k: getattr(p, k) for k in data}
     for k, v in data.items():
         setattr(p, k, v)
     sync_part_specs(db, p)
+    changed = _changed(old, {k: getattr(p, k) for k in data}, list(data), semantic_specs=True)
+    if changed:
+        add_log(db, aid, "edited: " + ", ".join(changed))
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
@@ -821,6 +902,7 @@ async def gui_dispose_part(aid: str, request: Request, db: Session = Depends(get
     p = get_or_404(db, Part, aid)
     form = await request.form()
     p.disposed = form.get("note", "") or "disposed"
+    add_log(db, aid, f"marked disposed: {p.disposed}")
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
@@ -829,6 +911,16 @@ async def gui_dispose_part(aid: str, request: Request, db: Session = Depends(get
 def gui_restore_part(aid: str, db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     p.disposed = ""
+    add_log(db, aid, "restored")
+    db.commit()
+    return RedirectResponse(f"/parts/{aid}", status_code=303)
+
+
+@app.post("/parts/{aid}/note", include_in_schema=False)
+async def gui_part_note(aid: str, request: Request, db: Session = Depends(get_db)):
+    get_or_404(db, Part, aid)
+    form = await request.form()
+    add_log(db, aid, (form.get("message", "") or "").strip(), kind="note")
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
@@ -838,14 +930,18 @@ async def gui_part_photo(aid: str, photos: list[UploadFile] = File(...),
                          db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     first = None
+    n = 0
     for up in photos:
         if (up.filename or "").strip():
             rel = _save_photo("parts", aid, up)
+            n += 1
             if first is None:
                 first = rel
     if first and not p.image:
         p.image = first
-        db.commit()
+    if n:
+        add_log(db, aid, f"added {n} photo(s)")
+    db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
 
@@ -853,8 +949,10 @@ async def gui_part_photo(aid: str, photos: list[UploadFile] = File(...),
 def gui_part_fetch_image(aid: str, db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     rel = _fetch_reference_photo("parts", aid, p.url or "") if p.url else None
-    if rel and not p.image:
-        p.image = rel
+    if rel:
+        if not p.image:
+            p.image = rel
+        add_log(db, aid, "fetched a photo from the reference")
         db.commit()
     return RedirectResponse(f"/parts/{aid}" + ("" if rel else "?imgerr=1"),
                             status_code=303)
@@ -865,7 +963,10 @@ async def gui_unlink_part(aid: str, request: Request, db: Session = Depends(get_
     p = get_or_404(db, Part, aid)
     form = await request.form()
     nxt = form.get("next", "") or f"/parts/{aid}"
+    old_cid = p.computer_id
     p.computer_id = ""
+    if old_cid:
+        add_log(db, aid, f"unlinked from computer {old_cid}")
     db.commit()
     return RedirectResponse(_safe_next(nxt), status_code=303)
 
@@ -878,6 +979,8 @@ async def gui_attach_part(aid: str, request: Request, db: Session = Depends(get_
     child = get_or_404(db, Part, form.get("part_id", ""))
     child.parent_id = aid
     child.computer_id = ""
+    add_log(db, aid, f"mounted {child.asset_id}")
+    add_log(db, child.asset_id, f"mounted on {aid}")
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
@@ -886,7 +989,10 @@ async def gui_attach_part(aid: str, request: Request, db: Session = Depends(get_
 async def gui_detach_part(aid: str, request: Request, db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)
     form = await request.form()
+    old_host = p.parent_id
     p.parent_id = ""
+    if old_host:
+        add_log(db, aid, f"unmounted from {old_host}")
     db.commit()
     return RedirectResponse(_safe_next(form.get("next", "") or f"/parts/{aid}"),
                             status_code=303)
@@ -898,6 +1004,7 @@ async def gui_part_primary(aid: str, request: Request,
     p = get_or_404(db, Part, aid)
     form = await request.form()
     p.image = _set_primary_photo("parts", aid, form.get("image", ""))
+    add_log(db, aid, "changed the default photo")
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 

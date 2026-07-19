@@ -1,7 +1,7 @@
 """ORM tables. Mirrors the CSV schema of the flat-file system: one shared asset
 register across computers + parts. A part's computer_id is a soft link to a
 computer's asset_id (blank = standalone / uninstalled)."""
-from sqlalchemy import Column, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from .db import Base
 
@@ -176,3 +176,15 @@ class PartAttribute(Base):
     part_id = _part_fk_indexed()
     akey = Column(String(128), default="")
     avalue = Column(Text, default="")
+
+
+class LogEntry(Base):
+    """A dated history entry for any asset (computer or part): automatic
+    change records and free-text notes. asset_id is from the shared register, so
+    it is a plain column rather than a foreign key to one table."""
+    __tablename__ = "log_entry"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(String(16), index=True)
+    created_at = Column(DateTime, index=True)
+    kind = Column(String(16), default="change")
+    message = Column(Text, default="")

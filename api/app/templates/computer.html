@@ -102,6 +102,25 @@
         {% endfor %}
       </table>
     </div>
+    {% if request.state.authed %}
+    <div class="section">
+      <h3 style="margin:0 0 6px">History</h3>
+      <form method="post" action="/computers/{{ c.asset_id }}/note" class="notebar">
+        <input name="message" placeholder="add a note, e.g. tested, cleaned, recapped" required>
+        <button class="btn sm" type="submit">add note</button>
+      </form>
+      {% if log %}
+      <table>
+        {% for e in log %}
+        <tr>
+          <td class="muted" style="white-space:nowrap">{{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '' }}</td>
+          <td>{% if e.kind == 'note' %}<span class="chip">note</span> {% endif %}{{ e.message }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="muted">No history yet.</p>{% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="photo-col">
     {% if images %}<img class="photo-main zoomable" src="/images/{{ images[0] }}" alt="{{ c.asset_id }}">
