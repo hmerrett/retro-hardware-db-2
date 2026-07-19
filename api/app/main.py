@@ -227,17 +227,29 @@ def item_log(db, asset_id):
             .order_by(LogEntry.created_at.desc(), LogEntry.id.desc()).all())
 
 
-def _changed(old, new, keys, semantic_specs=False):
-    """Which fields changed (specs compared as a set of pairs, so re-canonicalising
-    an unchanged specs string is not logged as a change)."""
-    out = []
+def _short(v, limit=80):
+    v = (v or "").strip()
+    if not v:
+        return "(empty)"
+    return v if len(v) <= limit else v[:limit - 1] + "…"
+
+
+def _field_diffs(old, new, keys, semantic_specs=False):
+    """A one-change-per-line diff of old vs new field values, for the change log.
+    specs is broken down per spec key; re-canonicalising an unchanged specs
+    string produces no diff."""
+    lines = []
     for k in keys:
+        ov, nv = old.get(k) or "", new.get(k) or ""
         if semantic_specs and k == "specs":
-            if set(entry.parse_specs(old.get(k) or "")) != set(entry.parse_specs(new.get(k) or "")):
-                out.append(k)
-        elif (old.get(k) or "") != (new.get(k) or ""):
-            out.append(k)
-    return out
+            o, n = dict(entry.parse_specs(ov)), dict(entry.parse_specs(nv))
+            for sk in [x for x in n if x not in o or o[x] != n[x]]:
+                lines.append(f"{sk or 'spec'}: {_short(o.get(sk))} → {_short(n[sk])}")
+            for sk in [x for x in o if x not in n]:
+                lines.append(f"{sk or 'spec'}: {_short(o[sk])} → (removed)")
+        elif ov != nv:
+            lines.append(f"{k}: {_short(ov)} → {_short(nv)}")
+    return "\n".join(lines)
 
 
 # --- JSON API: computers ---------------------------------------------------
@@ -269,9 +281,9 @@ def api_update_computer(aid: str, data: ComputerIn, db: Session = Depends(get_db
     old = {k: getattr(obj, k) for k in fields}
     for k, v in fields.items():
         setattr(obj, k, v)
-    changed = _changed(old, fields, fields)
-    if changed:
-        add_log(db, aid, "edited: " + ", ".join(changed))
+    diff = _field_diffs(old, {k: getattr(obj, k) for k in fields}, list(fields))
+    if diff:
+        add_log(db, aid, diff)
     db.commit()
     db.refresh(obj)
     return obj
@@ -325,9 +337,9 @@ def api_update_part(aid: str, data: PartIn, db: Session = Depends(get_db)):
         setattr(obj, k, v)
     sync_part_specs(db, obj)
     new = {k: getattr(obj, k) for k in fields}
-    changed = _changed(old, new, fields, semantic_specs=True)
-    if changed:
-        add_log(db, aid, "edited: " + ", ".join(changed))
+    diff = _field_diffs(old, new, list(fields), semantic_specs=True)
+    if diff:
+        add_log(db, aid, diff)
     db.commit()
     db.refresh(obj)
     return obj
@@ -583,9 +595,9 @@ async def gui_save_computer(aid: str, request: Request, db: Session = Depends(ge
         elif k in ("manufacturer", "model"):
             v = entry.deshout(v)
         setattr(c, k, v)
-    changed = _changed(old, {k: getattr(c, k) for k in COMPUTER_FIELDS}, COMPUTER_FIELDS)
-    if changed:
-        add_log(db, aid, "edited: " + ", ".join(changed))
+    diff = _field_diffs(old, {k: getattr(c, k) for k in COMPUTER_FIELDS}, COMPUTER_FIELDS)
+    if diff:
+        add_log(db, aid, diff)
     db.commit()
     return RedirectResponse(f"/computers/{aid}", status_code=303)
 
@@ -890,9 +902,9 @@ async def gui_save_part(aid: str, request: Request, db: Session = Depends(get_db
     for k, v in data.items():
         setattr(p, k, v)
     sync_part_specs(db, p)
-    changed = _changed(old, {k: getattr(p, k) for k in data}, list(data), semantic_specs=True)
-    if changed:
-        add_log(db, aid, "edited: " + ", ".join(changed))
+    diff = _field_diffs(old, {k: getattr(p, k) for k in data}, list(data), semantic_specs=True)
+    if diff:
+        add_log(db, aid, diff)
     db.commit()
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
