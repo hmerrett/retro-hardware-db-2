@@ -16,9 +16,13 @@
   {{ fld('chassis', 'Chassis / case', "desktop, tower, mini-tower, breadbin…") }}
   {{ fld('os', 'Operating system') }}
   {{ fld('cpu', 'CPU', "an attribute, not a part — e.g. Intel 486DX2-66, or 2x Pentium III 500") }}
-  <label for="installed_ram">Installed RAM — SIMMs / SIPPs / modules</label>
-  <input id="installed_ram" name="installed_ram" value="{{ ram_free }}">
-  <p class="hint">quick entry: 8x1MB 30-pin computes the total; or just type 16MB. For DRAM chips fitted directly on the board, use the grid below; both are combined.</p>
+  <label>Memory modules (SIMMs / SIPPs)</label>
+  <p class="hint">enter how many of each fitted module; the total is computed.</p>
+  <div class="countgrid">
+    {% for slug, kb, label in ram_modules %}
+    <label><span>{{ label }}</span> <input type="number" min="0" name="rammod:{{ slug }}" value="{{ ram_mod_counts.get(slug, '') }}"></label>
+    {% endfor %}
+  </div>
   <label>RAM chips (installed directly)</label>
   <p class="hint">for DRAM soldered/socketed on the board, not on SIMMs. Enter how many of each; a banks-of-9 count is treated as parity.</p>
   <div class="countgrid">
@@ -26,6 +30,9 @@
     <label><span>{{ pn }} <span class="muted">({{ org }})</span></span> <input type="number" min="0" name="ramchip:{{ pn }}" value="{{ ram_counts.get(pn, '') }}"></label>
     {% endfor %}
   </div>
+  <label for="installed_ram">Installed RAM — other / notes</label>
+  <input id="installed_ram" name="installed_ram" value="{{ ram_free }}">
+  <p class="hint">free-form fallback for anything the grids above do not cover (DIMMs, unusual sizes) or just a plain total like 16MB. All three are combined.</p>
   {{ fld('drives', 'Drives', "floppy / optical / CF-SD only; separate with ; — e.g. 3.5in 1.44MB floppy; CD-ROM. (Hard disks/tape are storage parts.)") }}
   <label for="condition">Condition</label>
   <select id="condition" name="condition">

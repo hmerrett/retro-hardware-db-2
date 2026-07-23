@@ -213,15 +213,52 @@ def parse_ram_chips(text):
     return counts
 
 
+# Common memory modules for machines with RAM on SIMMs / SIPPs rather than
+# soldered chips. Each is (slug for the form field, KB per module, label).
+RAM_MODULES = [
+    ("30p256k", 256, "256KB 30-pin"), ("30p1m", 1024, "1MB 30-pin"),
+    ("30p4m", 4096, "4MB 30-pin"),
+    ("sipp256k", 256, "256KB SIPP"), ("sipp1m", 1024, "1MB SIPP"),
+    ("sipp4m", 4096, "4MB SIPP"),
+    ("72p1m", 1024, "1MB 72-pin"), ("72p2m", 2048, "2MB 72-pin"),
+    ("72p4m", 4096, "4MB 72-pin"), ("72p8m", 8192, "8MB 72-pin"),
+    ("72p16m", 16384, "16MB 72-pin"), ("72p32m", 32768, "32MB 72-pin"),
+]
+RAM_MODULE_KB = {s: kb for s, kb, _ in RAM_MODULES}
+RAM_MODULE_LABEL = {s: lbl for s, _kb, lbl in RAM_MODULES}
+
+
+def format_ram_modules(counts):
+    """[(slug, n), ...] -> '4× 1MB 30-pin, 2× 4MB 72-pin (12 MB)' with the total."""
+    counts = [(s, n) for s, n in counts if n]
+    if not counts:
+        return ""
+    total_kb = sum(n * RAM_MODULE_KB.get(s, 0) for s, n in counts)
+    mods = ", ".join(f"{n}× {RAM_MODULE_LABEL[s]}" for s, n in counts)
+    total = f"{total_kb // 1024} MB" if total_kb and total_kb % 1024 == 0 else f"{total_kb} KB"
+    return f"{mods} ({total})"
+
+
+def parse_ram_modules(text):
+    """{slug: count} parsed back out of the module tokens in an installed-ram string."""
+    counts = {}
+    for slug, _kb, label in RAM_MODULES:
+        m = re.search(r"(\d+)\s*[×x]\s*" + re.escape(label) + r"(?![\w-])", text or "")
+        if m:
+            counts[slug] = counts.get(slug, 0) + int(m.group(1))
+    return counts
+
+
 def split_installed_ram(text):
-    """Separate a stored installed-RAM string into its module/SIMM free text and
-    its direct-chip counts: '8× 1MB 30-pin (8 MB); 9× 41256 (256 KB + parity)'
-    -> ('8× 1MB 30-pin (8 MB)', {'41256': 9}). Segments are ';'-separated; any
-    segment that names known chips is the chip part, the rest is free text."""
+    """Separate a stored installed-RAM string into its free text, module counts
+    and direct-chip counts: the ';'-separated segments naming known chips or
+    modules are pulled out, and whatever is left is the free text.
+    -> (free_text, {chip: n}, {module_slug: n})."""
     chips = parse_ram_chips(text)
+    modules = parse_ram_modules(text)
     free = [seg.strip() for seg in (text or "").split(";")
-            if seg.strip() and not parse_ram_chips(seg)]
-    return "; ".join(free), chips
+            if seg.strip() and not parse_ram_chips(seg) and not parse_ram_modules(seg)]
+    return "; ".join(free), chips, modules
 
 
 # --- quick-entry: ports (io cards + motherboard onboard I/O) ---------------

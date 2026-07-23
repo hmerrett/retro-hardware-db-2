@@ -548,23 +548,31 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
 
 # --- GUI: computers --------------------------------------------------------
 
-def _ram_from_form(form):
-    """A computer's installed_ram: the module/SIMM free-text entry and the
-    direct-DRAM-chip grid combined, either of which may be empty."""
-    counts = []
-    for pn, _kb, _org in entry.RAM_CHIPS:
-        raw = (form.get(f"ramchip:{pn}", "") or "").strip()
+def _grid_counts(form, prefix, items):
+    """[(key, n), ...] for the count-grid inputs '<prefix>:<key>' that hold a
+    positive integer."""
+    out = []
+    for key, *_ in items:
+        raw = (form.get(f"{prefix}:{key}", "") or "").strip()
         if raw.isdigit() and int(raw) > 0:
-            counts.append((pn, int(raw)))
+            out.append((key, int(raw)))
+    return out
+
+
+def _ram_from_form(form):
+    """A computer's installed_ram: the free-text entry, the SIMM/SIPP module
+    grid and the direct-DRAM-chip grid combined, any of which may be empty."""
     free = entry.parse_installed_ram(form.get("installed_ram", "") or "")
-    chips = entry.format_ram_chips(counts)
-    return "; ".join(s for s in (free, chips) if s)
+    mods = entry.format_ram_modules(_grid_counts(form, "rammod", entry.RAM_MODULES))
+    chips = entry.format_ram_chips(_grid_counts(form, "ramchip", entry.RAM_CHIPS))
+    return "; ".join(s for s in (free, mods, chips) if s)
 
 
 def _computer_form_ctx(c, title):
-    free, counts = entry.split_installed_ram(c.installed_ram) if c else ("", {})
+    free, chips, mods = entry.split_installed_ram(c.installed_ram) if c else ("", {}, {})
     return {"c": c, "conditions": entry.CONDITIONS, "title": title,
-            "ram_chips": entry.RAM_CHIPS, "ram_counts": counts, "ram_free": free}
+            "ram_modules": entry.RAM_MODULES, "ram_mod_counts": mods,
+            "ram_chips": entry.RAM_CHIPS, "ram_counts": chips, "ram_free": free}
 
 
 @app.get("/computers/new", response_class=HTMLResponse, include_in_schema=False)
