@@ -172,17 +172,35 @@ RAM_CHIPS = [
     ("411000", 128, "1M×1"), ("514256", 128, "256K×4"),
 ]
 RAM_CHIP_KB = {pn: kb for pn, kb, _ in RAM_CHIPS}
+RAM_CHIP_ORG = {pn: org for pn, _kb, org in RAM_CHIPS}
+
+
+def _chip_width(org):
+    """Data-bits-per-chip from an organisation string: '256K×1' -> 1, '64K×4' -> 4."""
+    m = re.search(r"[×x](\d+)\s*$", org or "")
+    return int(m.group(1)) if m else 1
 
 
 def format_ram_chips(counts):
-    """[(chip, n), ...] -> '8× 4164, 2× 4464 (64 KB)' with the summed total."""
+    """[(chip, n), ...] -> '9× 41256 (256 KB + parity)' with the usable total.
+
+    A byte-wide bank of ×1 chips is 8 data chips plus (often) a 9th parity
+    chip, so a count divisible by 9 is treated as 8/9 usable capacity and
+    flagged; anything else is summed straight."""
     counts = [(pn, n) for pn, n in counts if n]
     if not counts:
         return ""
-    total_kb = sum(n * RAM_CHIP_KB.get(pn, 0) for pn, n in counts)
+    total_kb, parity = 0, False
+    for pn, n in counts:
+        kb = RAM_CHIP_KB.get(pn, 0)
+        if _chip_width(RAM_CHIP_ORG.get(pn, "")) == 1 and n % 9 == 0:
+            total_kb += (n // 9) * 8 * kb
+            parity = True
+        else:
+            total_kb += n * kb
     chips = ", ".join(f"{n}× {pn}" for pn, n in counts)
     total = f"{total_kb // 1024} MB" if total_kb and total_kb % 1024 == 0 else f"{total_kb} KB"
-    return f"{chips} ({total})"
+    return f"{chips} ({total}{' + parity' if parity else ''})"
 
 
 def parse_ram_chips(text):
