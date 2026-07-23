@@ -548,17 +548,36 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
 
 # --- GUI: computers --------------------------------------------------------
 
+def _ram_from_form(form):
+    """A computer's installed_ram: built from the direct-DRAM-chip grid if any
+    counts were entered, otherwise the free-text field (with its quick-entry)."""
+    counts = []
+    for pn, _kb, _org in entry.RAM_CHIPS:
+        raw = (form.get(f"ramchip:{pn}", "") or "").strip()
+        if raw.isdigit() and int(raw) > 0:
+            counts.append((pn, int(raw)))
+    if counts:
+        return entry.format_ram_chips(counts)
+    return entry.parse_installed_ram(form.get("installed_ram", "") or "")
+
+
+def _computer_form_ctx(c, title):
+    return {"c": c, "conditions": entry.CONDITIONS, "title": title,
+            "ram_chips": entry.RAM_CHIPS,
+            "ram_counts": entry.parse_ram_chips(c.installed_ram) if c else {}}
+
+
 @app.get("/computers/new", response_class=HTMLResponse, include_in_schema=False)
 def gui_new_computer(request: Request):
-    return templates.TemplateResponse(request, "computer_form.html", {
-        "c": None, "conditions": entry.CONDITIONS, "title": "New computer"})
+    return templates.TemplateResponse(request, "computer_form.html",
+                                      _computer_form_ctx(None, "New computer"))
 
 
 @app.post("/computers/new", include_in_schema=False)
 async def gui_create_computer(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     data = {k: (form.get(k, "") or "") for k in COMPUTER_FIELDS}
-    data["installed_ram"] = entry.parse_installed_ram(data.get("installed_ram", ""))
+    data["installed_ram"] = _ram_from_form(form)
     for f in ("manufacturer", "model"):
         data[f] = entry.deshout(data[f])
     obj = Computer(asset_id=next_asset_id(db), **data)
@@ -600,8 +619,8 @@ def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
 @app.get("/computers/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
 def gui_edit_computer(aid: str, request: Request, db: Session = Depends(get_db)):
     c = get_or_404(db, Computer, aid)
-    return templates.TemplateResponse(request, "computer_form.html", {
-        "c": c, "conditions": entry.CONDITIONS, "title": f"Edit {aid}"})
+    return templates.TemplateResponse(request, "computer_form.html",
+                                      _computer_form_ctx(c, f"Edit {aid}"))
 
 
 @app.post("/computers/{aid}/edit", include_in_schema=False)
@@ -614,7 +633,7 @@ async def gui_save_computer(aid: str, request: Request, db: Session = Depends(ge
             continue
         v = form[k] or ""
         if k == "installed_ram":
-            v = entry.parse_installed_ram(v)
+            v = _ram_from_form(form)
         elif k in ("manufacturer", "model"):
             v = entry.deshout(v)
         setattr(c, k, v)

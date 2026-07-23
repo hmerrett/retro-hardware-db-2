@@ -164,6 +164,37 @@ def parse_installed_ram(text: str) -> str:
     return label
 
 
+# Common DRAM chips for machines with RAM soldered/socketed directly on the board
+# (not on SIMMs/modules). Each is (part number, KB per chip, organisation).
+RAM_CHIPS = [
+    ("4116", 2, "16K×1"), ("4164", 8, "64K×1"), ("4416", 8, "16K×4"),
+    ("4464", 32, "64K×4"), ("41256", 32, "256K×1"), ("44256", 128, "256K×4"),
+    ("411000", 128, "1M×1"), ("514256", 128, "256K×4"),
+]
+RAM_CHIP_KB = {pn: kb for pn, kb, _ in RAM_CHIPS}
+
+
+def format_ram_chips(counts):
+    """[(chip, n), ...] -> '8× 4164, 2× 4464 (64 KB)' with the summed total."""
+    counts = [(pn, n) for pn, n in counts if n]
+    if not counts:
+        return ""
+    total_kb = sum(n * RAM_CHIP_KB.get(pn, 0) for pn, n in counts)
+    chips = ", ".join(f"{n}× {pn}" for pn, n in counts)
+    total = f"{total_kb // 1024} MB" if total_kb and total_kb % 1024 == 0 else f"{total_kb} KB"
+    return f"{chips} ({total})"
+
+
+def parse_ram_chips(text):
+    """{chip: count} parsed back out of an installed-ram string of chip tokens."""
+    counts = {}
+    for m in re.finditer(r"(\d+)\s*[×x]\s*(\d{4,6})", text or ""):
+        pn = m.group(2)
+        if pn in RAM_CHIP_KB:
+            counts[pn] = counts.get(pn, 0) + int(m.group(1))
+    return counts
+
+
 # --- quick-entry: ports (io cards + motherboard onboard I/O) ---------------
 
 PORT_CODES = [("I", "IDE"), ("C", "SCSI"), ("A", "SATA"), ("M", "MFM"),

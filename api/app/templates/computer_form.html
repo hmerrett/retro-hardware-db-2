@@ -17,6 +17,13 @@
   {{ fld('os', 'Operating system') }}
   {{ fld('cpu', 'CPU', "an attribute, not a part — e.g. Intel 486DX2-66, or 2x Pentium III 500") }}
   {{ fld('installed_ram', 'Installed RAM', "quick entry: 8x1MB 30-pin computes the total; or just 16MB") }}
+  <label>RAM chips (installed directly)</label>
+  <p class="hint">for DRAM soldered/socketed on the board, not on SIMMs. Enter how many of each; if you use these they set Installed RAM above, with a computed total.</p>
+  <div class="countgrid">
+    {% for pn, kb, org in ram_chips %}
+    <label><span>{{ pn }} <span class="muted">({{ org }})</span></span> <input type="number" min="0" name="ramchip:{{ pn }}" value="{{ ram_counts.get(pn, '') }}"></label>
+    {% endfor %}
+  </div>
   {{ fld('drives', 'Drives', "floppy / optical / CF-SD only; separate with ; — e.g. 3.5in 1.44MB floppy; CD-ROM. (Hard disks/tape are storage parts.)") }}
   <label for="condition">Condition</label>
   <select id="condition" name="condition">
