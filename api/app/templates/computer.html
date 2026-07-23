@@ -87,6 +87,17 @@
         <a class="btn sm" href="/parts/new?type=peripheral&computer_id={{ c.asset_id }}">peripheral</a>
       </div>
       {% endif %}
+      {% if request.state.authed and link_candidates %}
+      <div class="toolbar">
+        <span class="muted">Link existing part:</span>
+        <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/link-part">
+          <select name="part_id">
+            {% for cand in link_candidates %}<option value="{{ cand.asset_id }}">{{ cand.asset_id }} · {{ type_label(cand.type) }} · {{ display_name({'name': cand.name, 'manufacturer': cand.manufacturer, 'model': cand.model, 'asset_id': cand.asset_id}) }}</option>{% endfor %}
+          </select>
+          <button class="btn sm" type="submit">link</button>
+        </form>
+      </div>
+      {% endif %}
       <table>
         <tr><th>Asset</th><th>Type</th><th>Name</th><th>Specs</th>{% if request.state.authed %}<th></th>{% endif %}</tr>
         {% for p in parts %}

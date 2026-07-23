@@ -43,6 +43,18 @@
     {% if p.notes %}<tr><th>Notes</th><td>{{ p.notes }}</td></tr>{% endif %}
     </table>
 
+    {% if request.state.authed and computers %}
+    <div class="toolbar">
+      <span class="muted">Install in computer:</span>
+      <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/link">
+        <select name="computer_id">
+          {% for comp in computers %}<option value="{{ comp.asset_id }}">{{ comp.asset_id }} · {{ display_name({'name': comp.name, 'manufacturer': comp.manufacturer, 'model': comp.model, 'asset_id': comp.asset_id}) }}</option>{% endfor %}
+        </select>
+        <button class="btn sm" type="submit">install</button>
+      </form>
+    </div>
+    {% endif %}
+
     {% if spec_pairs %}
     <div class="section">
       <h3 style="margin:0 0 6px">Specs</h3>

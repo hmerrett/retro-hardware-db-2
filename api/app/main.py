@@ -562,14 +562,21 @@ def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
                               entry.display_name(to_dict(p))))
     motherboard = next((p for p in parts if p.type == "motherboard"), None)
     # Unlinked boards that could be linked to this machine.
-    free_boards = (db.query(Part)
-                   .filter(Part.type == "motherboard",
-                           (Part.computer_id == "") | (Part.computer_id.is_(None)))
-                   .order_by(Part.asset_id).all())
+    free_boards, link_candidates = [], []
+    if request.state.authed:
+        free_boards = (db.query(Part)
+                       .filter(Part.type == "motherboard",
+                               (Part.computer_id == "") | (Part.computer_id.is_(None)))
+                       .order_by(Part.asset_id).all())
+        link_candidates = (db.query(Part)
+                           .filter(Part.type != "motherboard",
+                                   (Part.computer_id == "") | (Part.computer_id.is_(None)),
+                                   (Part.parent_id == "") | (Part.parent_id.is_(None)))
+                           .order_by(Part.type, Part.asset_id).all())
     return templates.TemplateResponse(request, "computer.html", {
         "c": c, "parts": [p for p in parts if p is not motherboard],
-        "motherboard": motherboard,
-        "free_boards": free_boards, "images": detect_images("computers", aid),
+        "motherboard": motherboard, "free_boards": free_boards,
+        "link_candidates": link_candidates, "images": detect_images("computers", aid),
         "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr),
         "log": item_log(db, aid)})
 
@@ -616,6 +623,20 @@ async def gui_link_motherboard(aid: str, request: Request,
     add_log(db, board.asset_id, f"linked to computer {aid}")
     db.commit()
     return RedirectResponse(f"/computers/{aid}?build=1", status_code=303)
+
+
+@app.post("/computers/{aid}/link-part", include_in_schema=False)
+async def gui_link_part(aid: str, request: Request, db: Session = Depends(get_db)):
+    """Install an existing standalone part into this computer."""
+    get_or_404(db, Computer, aid)
+    form = await request.form()
+    part = get_or_404(db, Part, form.get("part_id", ""))
+    part.computer_id = aid
+    part.parent_id = ""
+    add_log(db, aid, f"linked part {part.asset_id}")
+    add_log(db, part.asset_id, f"installed in {aid}")
+    db.commit()
+    return RedirectResponse(f"/computers/{aid}", status_code=303)
 
 
 @app.post("/computers/{aid}/dispose", include_in_schema=False)
@@ -869,15 +890,18 @@ def gui_part(aid: str, request: Request, imgerr: int = 0,
     host = db.get(Part, p.parent_id) if p.parent_id else None
     children = (db.query(Part).filter(Part.parent_id == aid)
                 .order_by(Part.asset_id).all())
-    candidates = []
+    candidates, computers = [], []
     if request.state.authed:
         candidates = (db.query(Part)
                       .filter(Part.type == "storage", Part.asset_id != aid,
                               (Part.parent_id == "") | (Part.parent_id.is_(None)))
                       .order_by(Part.asset_id).all())
+        if not p.computer_id and not p.parent_id:
+            computers = db.query(Computer).order_by(Computer.asset_id).all()
     return templates.TemplateResponse(request, "part.html", {
         "p": p, "parent": parent, "host": host, "children": children,
-        "candidates": candidates, "images": detect_images("parts", aid),
+        "candidates": candidates, "computers": computers,
+        "images": detect_images("parts", aid),
         "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr),
         "log": item_log(db, aid)})
 
@@ -981,6 +1005,23 @@ async def gui_unlink_part(aid: str, request: Request, db: Session = Depends(get_
         add_log(db, aid, f"unlinked from computer {old_cid}")
     db.commit()
     return RedirectResponse(_safe_next(nxt), status_code=303)
+
+
+@app.post("/parts/{aid}/link", include_in_schema=False)
+async def gui_link_part_to_computer(aid: str, request: Request,
+                                    db: Session = Depends(get_db)):
+    """Install this part into an existing computer (chosen from the part page)."""
+    p = get_or_404(db, Part, aid)
+    form = await request.form()
+    cid = form.get("computer_id", "") or ""
+    if cid:
+        get_or_404(db, Computer, cid)
+        p.computer_id = cid
+        p.parent_id = ""
+        add_log(db, aid, f"installed in {cid}")
+        add_log(db, cid, f"linked part {aid}")
+        db.commit()
+    return RedirectResponse(f"/parts/{aid}", status_code=303)
 
 
 @app.post("/parts/{aid}/attach", include_in_schema=False)
