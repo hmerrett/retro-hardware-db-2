@@ -213,6 +213,17 @@ def parse_ram_chips(text):
     return counts
 
 
+def split_installed_ram(text):
+    """Separate a stored installed-RAM string into its module/SIMM free text and
+    its direct-chip counts: '8× 1MB 30-pin (8 MB); 9× 41256 (256 KB + parity)'
+    -> ('8× 1MB 30-pin (8 MB)', {'41256': 9}). Segments are ';'-separated; any
+    segment that names known chips is the chip part, the rest is free text."""
+    chips = parse_ram_chips(text)
+    free = [seg.strip() for seg in (text or "").split(";")
+            if seg.strip() and not parse_ram_chips(seg)]
+    return "; ".join(free), chips
+
+
 # --- quick-entry: ports (io cards + motherboard onboard I/O) ---------------
 
 PORT_CODES = [("I", "IDE"), ("C", "SCSI"), ("A", "SATA"), ("M", "MFM"),

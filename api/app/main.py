@@ -549,22 +549,22 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
 # --- GUI: computers --------------------------------------------------------
 
 def _ram_from_form(form):
-    """A computer's installed_ram: built from the direct-DRAM-chip grid if any
-    counts were entered, otherwise the free-text field (with its quick-entry)."""
+    """A computer's installed_ram: the module/SIMM free-text entry and the
+    direct-DRAM-chip grid combined, either of which may be empty."""
     counts = []
     for pn, _kb, _org in entry.RAM_CHIPS:
         raw = (form.get(f"ramchip:{pn}", "") or "").strip()
         if raw.isdigit() and int(raw) > 0:
             counts.append((pn, int(raw)))
-    if counts:
-        return entry.format_ram_chips(counts)
-    return entry.parse_installed_ram(form.get("installed_ram", "") or "")
+    free = entry.parse_installed_ram(form.get("installed_ram", "") or "")
+    chips = entry.format_ram_chips(counts)
+    return "; ".join(s for s in (free, chips) if s)
 
 
 def _computer_form_ctx(c, title):
+    free, counts = entry.split_installed_ram(c.installed_ram) if c else ("", {})
     return {"c": c, "conditions": entry.CONDITIONS, "title": title,
-            "ram_chips": entry.RAM_CHIPS,
-            "ram_counts": entry.parse_ram_chips(c.installed_ram) if c else {}}
+            "ram_chips": entry.RAM_CHIPS, "ram_counts": counts, "ram_free": free}
 
 
 @app.get("/computers/new", response_class=HTMLResponse, include_in_schema=False)
