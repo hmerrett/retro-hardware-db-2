@@ -23,6 +23,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import enrich, entry, labels, specstruct
@@ -484,6 +485,18 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
             counts[p.computer_id] = counts.get(p.computer_id, 0) + 1
     comp_ids = {c.asset_id for c in computers}
 
+    # Newest/oldest log timestamp per asset, for the updated / added sorts.
+    ts = {}
+    for aid, latest, first in db.query(
+            LogEntry.asset_id, func.max(LogEntry.created_at),
+            func.min(LogEntry.created_at)).group_by(LogEntry.asset_id):
+        ts[aid] = (latest, first)
+
+    def stamps(aid):
+        latest, first = ts.get(aid, (None, None))
+        return (latest.isoformat() if latest else "",
+                first.isoformat() if first else "")
+
     def primary_image(kind, aid):
         imgs = detect_images(kind, aid)
         return imgs[0] if imgs else ""
@@ -504,6 +517,7 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
             "name": entry.display_name(to_dict(c)),
             "image": primary_image("computers", c.asset_id),
             "placeholder": entry.placeholder_for("computer"),
+            "updated": stamps(c.asset_id)[0], "added": stamps(c.asset_id)[1],
             "sub": f"{counts.get(c.asset_id, 0)} part(s)",
             "search": " ".join([c.asset_id, c.name or "", c.manufacturer or "",
                                  c.model or "", c.os or "", c.cpu or ""]).lower(),
@@ -518,6 +532,7 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
             "image": primary_image("parts", p.asset_id),
             "placeholder": (storage_placeholder(p) if ptype == "storage"
                             else entry.placeholder_for(ptype)),
+            "updated": stamps(p.asset_id)[0], "added": stamps(p.asset_id)[1],
             "sub": (p.computer_id if p.computer_id else "standalone"),
             "search": " ".join([p.asset_id, p.name or "", p.manufacturer or "",
                                  p.model or "", p.specs or "", p.type or ""]).lower(),
