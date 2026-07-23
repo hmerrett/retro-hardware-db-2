@@ -19,7 +19,6 @@
   <select id="sort">
     <option value="updated">Recently updated</option>
     <option value="added">Recently added</option>
-    <option value="photos">Photos first</option>
     <option value="name">Name A–Z</option>
   </select>
   <label class="muted"><input type="checkbox" id="showdisposed"> show disposed</label>
@@ -61,16 +60,15 @@
   const cards = [...grid.children];
 
   function desc(a, b, attr) { return (b.dataset[attr] || '').localeCompare(a.dataset[attr] || ''); }
+  function hasImg(el) { return el.dataset.img === '1' ? 1 : 0; }
   function sortCards(mode) {
     const arr = cards.slice();
     arr.sort((a, b) => {
       if (mode === 'name') return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      // Recency sorts keep items with photos ahead of those without.
+      const photo = hasImg(b) - hasImg(a);
+      if (photo) return photo;
       if (mode === 'added') return desc(a, b, 'added') || desc(a, b, 'updated');
-      if (mode === 'photos') {
-        const aImg = a.dataset.img === '1' ? 1 : 0, bImg = b.dataset.img === '1' ? 1 : 0;
-        if (aImg !== bImg) return bImg - aImg;
-        return desc(a, b, 'updated');
-      }
       return desc(a, b, 'updated');
     });
     arr.forEach(el => grid.appendChild(el));
