@@ -91,9 +91,10 @@
       <div class="toolbar">
         <span class="muted">Link existing part:</span>
         <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/link-part">
-          <select name="part_id">
-            {% for cand in link_candidates %}<option value="{{ cand.asset_id }}">{{ cand.asset_id }} · {{ type_label(cand.type) }} · {{ display_name({'name': cand.name, 'manufacturer': cand.manufacturer, 'model': cand.model, 'asset_id': cand.asset_id}) }}</option>{% endfor %}
-          </select>
+          <input name="part_id" list="linkparts" placeholder="type asset id or name…" autocomplete="off" required>
+          <datalist id="linkparts">
+            {% for cand in link_candidates %}<option value="{{ cand.asset_id }}">{{ type_label(cand.type) }} · {{ display_name({'name': cand.name, 'manufacturer': cand.manufacturer, 'model': cand.model, 'asset_id': cand.asset_id}) }}</option>{% endfor %}
+          </datalist>
           <button class="btn sm" type="submit">link</button>
         </form>
       </div>

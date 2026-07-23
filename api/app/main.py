@@ -204,7 +204,7 @@ app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent /
 
 
 def get_or_404(db, model, aid):
-    obj = db.get(model, aid)
+    obj = db.get(model, (aid or "").upper())
     if not obj:
         raise HTTPException(404, f"{model.__tablename__} {aid} not found")
     return obj
@@ -464,6 +464,7 @@ def _set_primary_photo(kind, asset_id, rel):
 def gui_item(aid: str, db: Session = Depends(get_db)):
     """The URL printed on labels: resolve an asset id to its page whether it's a
     computer or a part. Keeps the same /items/<id> scheme the old QR codes used."""
+    aid = aid.upper()
     if db.get(Computer, aid):
         return RedirectResponse(f"/computers/{aid}", status_code=307)
     if db.get(Part, aid):
