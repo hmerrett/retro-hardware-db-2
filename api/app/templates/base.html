@@ -74,7 +74,8 @@
   .detail { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; margin-top: 6px; }
   .detail-main { min-width: 0; }
   .photo-col { min-width: 0; }
-  .detail-main td { overflow-wrap: anywhere; }
+  .detail-main td.wrap { overflow-wrap: anywhere; }
+  .detail-main table td:first-child { white-space: nowrap; }
   @media (max-width: 720px) { .detail { grid-template-columns: 1fr; } }
   .section { margin-top: 24px; }
   .flex { display: flex; align-items: baseline; gap: 12px; }

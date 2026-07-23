@@ -39,7 +39,7 @@
                     ('Source', c.source), ('Acquired', c.acquired_date), ('Notes', c.notes)] %}
       {% if v %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endif %}
     {% endfor %}
-    {% if c.url %}<tr><th>Reference</th><td><a href="{{ c.url }}" target="_blank">{{ c.url }}</a></td></tr>{% endif %}
+    {% if c.url %}<tr><th>Reference</th><td class="wrap"><a href="{{ c.url }}" target="_blank">{{ c.url }}</a></td></tr>{% endif %}
     </table>
 
     <!-- Motherboard: link an existing unlinked board, or create one now. -->
@@ -56,13 +56,13 @@
         <p class="muted">No motherboard linked yet.</p>
         {% if request.state.authed %}
         <div class="toolbar">
-          <a class="btn" href="/parts/new?type=motherboard&computer_id={{ c.asset_id }}">Create motherboard</a>
+          <a class="btn sm" href="/parts/new?type=motherboard&computer_id={{ c.asset_id }}">Create motherboard</a>
           {% if free_boards %}
           <form class="inline-form" method="post" action="/computers/{{ c.asset_id }}/link-motherboard">
             <select name="part_id">
-              {% for b in free_boards %}<option value="{{ b.asset_id }}">{{ b.asset_id }} — {{ display_name({'name': b.name, 'manufacturer': b.manufacturer, 'model': b.model, 'asset_id': b.asset_id}) }}</option>{% endfor %}
+              {% for b in free_boards %}<option value="{{ b.asset_id }}">{{ b.asset_id }} · {{ display_name({'name': b.name, 'manufacturer': b.manufacturer, 'model': b.model, 'asset_id': b.asset_id}) }}</option>{% endfor %}
             </select>
-            <button class="btn" type="submit">Link existing board</button>
+            <button class="btn sm" type="submit">Link existing board</button>
           </form>
           {% endif %}
         </div>
