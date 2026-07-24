@@ -139,7 +139,7 @@
       {% if images|length > 1 %}<div class="thumbs">
         {% for img in images[1:] %}
         <div class="thumb-item">
-          <img class="zoomable" src="/images/{{ img }}">
+          <img class="zoomable" src="/images/{{ img }}" alt="{{ c.asset_id }}" loading="lazy">
           {% if request.state.authed %}
           <form method="post" action="/computers/{{ c.asset_id }}/primary-photo">
             <input type="hidden" name="image" value="{{ img }}">

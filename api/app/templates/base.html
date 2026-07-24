@@ -7,6 +7,11 @@
 {# Social-media link preview (Open Graph + Twitter card). #}
 {% set _og = og | default(none) %}
 {% set _og_title = _og.title if _og else 'Retro Hardware Database' %}
+{# Search-engine basics: description, canonical URL and indexability. #}
+<meta name="description" content="{{ (_og.description if _og and _og.description else 'A catalogue of vintage computers and hardware.') }}">
+{% if _og and _og.url %}<link rel="canonical" href="{{ _og.url }}">{% endif %}
+<meta name="robots" content="{{ 'noindex, follow' if noindex | default(false) else 'index, follow' }}">
+{% if jsonld is defined and jsonld %}<script type="application/ld+json">{{ jsonld | tojson }}</script>{% endif %}
 <meta name="theme-color" content="#2563eb">
 <meta property="og:site_name" content="Retro Hardware Database">
 <meta property="og:type" content="website">

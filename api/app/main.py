@@ -120,6 +120,22 @@ def _og(request: Request, title: str, description: str = "", image_rel: str = No
             og["image_w"], og["image_h"] = size
     return og
 
+
+def _jsonld(og, asset_id, brand, category):
+    """schema.org Product data for an item, so search engines can show a richer
+    result. Built from the same values as the social-share card."""
+    d = {"@context": "https://schema.org", "@type": "Product",
+         "name": og["title"], "sku": asset_id, "category": category}
+    if og.get("description"):
+        d["description"] = og["description"]
+    if og.get("image"):
+        d["image"] = og["image"]
+    if og.get("url"):
+        d["url"] = og["url"]
+    if brand:
+        d["brand"] = {"@type": "Brand", "name": brand}
+    return d
+
 # Signed-cookie session for the browser (the API/tools keep using HTTP Basic).
 SECRET_KEY = (os.getenv("RHDB_SECRET_KEY")
               or hashlib.sha256(f"{AUTH_USER}:{AUTH_PASS}:rhdb".encode()).hexdigest())
@@ -162,7 +178,9 @@ def _is_public_read(request: Request) -> bool:
     if request.method != "GET":
         return False
     path = request.url.path
-    if path == "/" or path.startswith("/images/") or path.startswith("/static/"):
+    if path in ("/", "/robots.txt", "/sitemap.xml"):
+        return True
+    if path.startswith("/images/") or path.startswith("/static/"):
         return True
     if path.startswith("/items/"):
         return True
@@ -202,7 +220,8 @@ def gui_login(request: Request, next: str = "/"):
     if request.state.authed:
         return RedirectResponse(_safe_next(next), status_code=303)
     return templates.TemplateResponse(request, "login.html",
-                                      {"next": _safe_next(next), "error": False})
+                                      {"next": _safe_next(next), "error": False,
+                                       "noindex": True})
 
 
 @app.post("/login", include_in_schema=False)
@@ -214,7 +233,8 @@ async def gui_do_login(request: Request):
           and secrets.compare_digest(form.get("password", ""), AUTH_PASS))
     if not ok:
         return templates.TemplateResponse(request, "login.html",
-                                          {"next": nxt, "error": True}, status_code=401)
+                                          {"next": nxt, "error": True, "noindex": True},
+                                          status_code=401)
     resp = RedirectResponse(nxt, status_code=303)
     resp.set_cookie(COOKIE, _signer.dumps("ok"), max_age=SESSION_MAX_AGE,
                     httponly=True, samesite="lax",
@@ -249,6 +269,51 @@ def gui_stats():
             "&mdash; it is generated from the access log every minute, so check "
             "back shortly.</p>")
     return HTMLResponse(report.read_text(encoding="utf-8"))
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt(request: Request):
+    base = PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api\n"
+        "Disallow: /docs\n"
+        "Disallow: /openapi.json\n"
+        "Disallow: /login\n"
+        "Disallow: /logout\n"
+        "Disallow: /stats\n"
+        "Disallow: /computers/new\n"
+        "Disallow: /parts/new\n"
+        "Disallow: /*/edit\n"
+        f"Sitemap: {base}/sitemap.xml\n")
+    return Response(body, media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml(request: Request, db: Session = Depends(get_db)):
+    base = PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
+    # Newest change per asset, for <lastmod>.
+    last = {aid: ts for aid, ts in db.query(
+        LogEntry.asset_id, func.max(LogEntry.created_at)).group_by(LogEntry.asset_id)}
+    urls = [(f"{base}/", None)]
+    for c in db.query(Computer.asset_id).order_by(Computer.asset_id):
+        urls.append((f"{base}/computers/{c.asset_id}", last.get(c.asset_id)))
+    for p in db.query(Part.asset_id).order_by(Part.asset_id):
+        urls.append((f"{base}/parts/{p.asset_id}", last.get(p.asset_id)))
+    from xml.sax.saxutils import escape
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, ts in urls:
+        lines.append("  <url>")
+        lines.append(f"    <loc>{escape(loc)}</loc>")
+        if ts:
+            lines.append(f"    <lastmod>{ts.strftime('%Y-%m-%d')}</lastmod>")
+        lines.append("  </url>")
+    lines.append("</urlset>")
+    return Response("\n".join(lines), media_type="application/xml")
+
+
 for sub in ("computers", "parts"):
     (IMAGES_DIR / sub).mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
@@ -679,8 +744,9 @@ def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
         "link_candidates": link_candidates, "images": images,
         "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr),
         "log": item_log(db, aid),
-        "og": _og(request, entry.display_name(to_dict(c)), blurb,
-                  images[0] if images else None)})
+        "og": (og := _og(request, entry.display_name(to_dict(c)), blurb,
+                         images[0] if images else None)),
+        "jsonld": _jsonld(og, c.asset_id, c.manufacturer, "Vintage computer")})
 
 
 @app.get("/computers/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -1010,8 +1076,10 @@ def gui_part(aid: str, request: Request, imgerr: int = 0,
         "images": images,
         "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr),
         "log": item_log(db, aid),
-        "og": _og(request, entry.display_name(to_dict(p)), blurb,
-                  images[0] if images else None)})
+        "og": (og := _og(request, entry.display_name(to_dict(p)), blurb,
+                         images[0] if images else None)),
+        "jsonld": _jsonld(og, p.asset_id, p.manufacturer,
+                          entry.type_label(p.type) or "Computer part")})
 
 
 @app.get("/parts/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
