@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -178,7 +178,8 @@ def _is_public_read(request: Request) -> bool:
     if request.method != "GET":
         return False
     path = request.url.path
-    if path in ("/", "/robots.txt", "/sitemap.xml"):
+    if path in ("/", "/robots.txt", "/sitemap.xml", "/favicon.ico",
+                "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
         return True
     if path.startswith("/images/") or path.startswith("/static/"):
         return True
@@ -314,11 +315,25 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     return Response("\n".join(lines), media_type="application/xml")
 
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+# Browsers and crawlers request these at the domain root regardless of markup.
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(STATIC_DIR / "favicon.ico")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+def apple_touch_icon():
+    return FileResponse(STATIC_DIR / "apple-touch-icon.png")
+
+
 for sub in ("computers", "parts"):
     (IMAGES_DIR / sub).mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
-app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
-          name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def get_or_404(db, model, aid):

@@ -12,6 +12,12 @@
 {% if _og and _og.url %}<link rel="canonical" href="{{ _og.url }}">{% endif %}
 <meta name="robots" content="{{ 'noindex, follow' if noindex | default(false) else 'index, follow' }}">
 {% if jsonld is defined and jsonld %}<script type="application/ld+json">{{ jsonld | tojson }}</script>{% endif %}
+{# Favicons / app icons. #}
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/static/site.webmanifest">
 <meta name="theme-color" content="#2563eb">
 <meta property="og:site_name" content="Retro Hardware Database">
 <meta property="og:type" content="website">
