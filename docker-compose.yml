@@ -27,6 +27,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - images:/app/images
+      - goaccess_report:/app/stats:ro
     depends_on:
       db:
         condition: service_healthy
@@ -53,11 +54,35 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - caddy_logs:/var/log/caddy
     depends_on:
       - api
+
+  # Turns Caddy's access log into a self-contained HTML traffic report every
+  # minute; the app serves it (login-only) at /stats.
+  goaccess:
+    image: allinurl/goaccess:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          if [ -s /logs/access.log ]; then
+            goaccess /logs/access.log -o /report/index.html \
+              --log-format=CADDY --html-report-title="db.2600.me traffic"
+          fi
+          sleep 60
+        done
+    volumes:
+      - caddy_logs:/logs:ro
+      - goaccess_report:/report
+    depends_on:
+      - caddy
 
 volumes:
   dbdata:
   images:
   caddy_data:
   caddy_config:
+  caddy_logs:
+  goaccess_report:

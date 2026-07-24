@@ -136,6 +136,7 @@
   <button id="theme-toggle" class="btn sm" type="button" title="Toggle light / dark">☾</button>
   {% if auth_enabled %}
   {% if request.state.authed %}
+  <a class="btn sm" href="/stats">stats</a>
   <form method="post" action="/logout" style="margin:0"><button class="btn sm" type="submit">log out</button></form>
   {% else %}
   <a class="btn sm" href="/login">log in</a>

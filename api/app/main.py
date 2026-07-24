@@ -234,6 +234,21 @@ PART_FIELDS = [c.name for c in Part.__table__.columns if c.name != "asset_id"]
 
 IMAGES_DIR = Path("/app/images")
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+# GoAccess writes a self-contained traffic report here (read-only mount from the
+# shared volume). The route is login-only via the auth gate above.
+STATS_DIR = Path("/app/stats")
+
+
+@app.get("/stats", response_class=HTMLResponse, include_in_schema=False)
+def gui_stats():
+    report = STATS_DIR / "index.html"
+    if not report.exists():
+        return HTMLResponse(
+            "<p style='font-family:system-ui;margin:2rem'>No traffic report yet "
+            "&mdash; it is generated from the access log every minute, so check "
+            "back shortly.</p>")
+    return HTMLResponse(report.read_text(encoding="utf-8"))
 for sub in ("computers", "parts"):
     (IMAGES_DIR / sub).mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
