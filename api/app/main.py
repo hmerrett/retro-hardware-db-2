@@ -1041,10 +1041,11 @@ async def gui_save_part(aid: str, request: Request, db: Session = Depends(get_db
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
 
-# A duplicate is a second identical unit: copy every descriptive field and its
-# placement, but not the photos (they belong to the original unit) or the
-# disposed flag (the copy starts fresh).
-DUP_EXCLUDE = {"image", "disposed"}
+# A duplicate is a second identical unit: copy the descriptive fields, specs and
+# placement, but not the photos (they belong to the original unit), the disposed
+# flag, or the per-unit provenance (source / acquired date / notes) which the
+# copy starts blank.
+DUP_EXCLUDE = {"image", "disposed", "source", "acquired_date", "notes"}
 
 
 @app.post("/parts/{aid}/duplicate", include_in_schema=False)
