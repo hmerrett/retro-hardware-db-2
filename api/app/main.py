@@ -83,6 +83,28 @@ AUTH_PASS = os.getenv("RHDB_AUTH_PASSWORD", "")
 AUTH_ENABLED = bool(AUTH_USER and AUTH_PASS)
 templates.env.globals["auth_enabled"] = AUTH_ENABLED
 
+# Public origin used to build the absolute URLs that social-media link previews
+# (Open Graph / Twitter cards) require; falls back to the request's own host.
+PUBLIC_BASE_URL = os.getenv("RHDB_BASE_URL", "").rstrip("/")
+
+
+def _abs_url(request: Request, path: str) -> str:
+    base = PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
+    return base + path
+
+
+def _dot(*parts) -> str:
+    return " · ".join(str(p) for p in parts if p)
+
+
+def _og(request: Request, title: str, description: str = "", image_rel: str = None):
+    """Open Graph / Twitter-card context for a page's social-share preview."""
+    og = {"title": title, "url": _abs_url(request, request.url.path),
+          "description": " ".join((description or "").split())[:280]}
+    if image_rel:
+        og["image"] = _abs_url(request, f"/images/{image_rel}")
+    return og
+
 # Signed-cookie session for the browser (the API/tools keep using HTTP Basic).
 SECRET_KEY = (os.getenv("RHDB_SECRET_KEY")
               or hashlib.sha256(f"{AUTH_USER}:{AUTH_PASS}:rhdb".encode()).hexdigest())
@@ -543,7 +565,9 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
         cats.append((t, entry.type_label(t)))
     return templates.TemplateResponse(request, "index.html", {
         "rows": rows, "cats": cats,
-        "n_computers": len(computers), "n_parts": len(parts)})
+        "n_computers": len(computers), "n_parts": len(parts),
+        "og": _og(request, "Retro Hardware Database",
+                  f"{len(computers)} computers and {len(parts)} parts in the collection.")})
 
 
 # --- GUI: computers --------------------------------------------------------
@@ -616,12 +640,17 @@ def gui_computer(aid: str, request: Request, build: int = 0, imgerr: int = 0,
                                    (Part.computer_id == "") | (Part.computer_id.is_(None)),
                                    (Part.parent_id == "") | (Part.parent_id.is_(None)))
                            .order_by(Part.type, Part.asset_id).all())
+    images = detect_images("computers", aid)
+    blurb = c.summary or _dot(" ".join(x for x in (c.manufacturer, c.model, c.year) if x),
+                              c.cpu, c.condition)
     return templates.TemplateResponse(request, "computer.html", {
         "c": c, "parts": [p for p in parts if p is not motherboard],
         "motherboard": motherboard, "free_boards": free_boards,
-        "link_candidates": link_candidates, "images": detect_images("computers", aid),
+        "link_candidates": link_candidates, "images": images,
         "card_steps": entry.CARD_STEPS, "build": bool(build), "imgerr": bool(imgerr),
-        "log": item_log(db, aid)})
+        "log": item_log(db, aid),
+        "og": _og(request, entry.display_name(to_dict(c)), blurb,
+                  images[0] if images else None)})
 
 
 @app.get("/computers/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)
@@ -941,12 +970,18 @@ def gui_part(aid: str, request: Request, imgerr: int = 0,
                       .order_by(Part.asset_id).all())
         if not p.computer_id and not p.parent_id:
             computers = db.query(Computer).order_by(Computer.asset_id).all()
+    images = detect_images("parts", aid)
+    blurb = p.summary or _dot(entry.type_label(p.type),
+                              " ".join(x for x in (p.manufacturer, p.model, p.year) if x),
+                              p.specs)
     return templates.TemplateResponse(request, "part.html", {
         "p": p, "parent": parent, "host": host, "children": children,
         "candidates": candidates, "computers": computers,
-        "images": detect_images("parts", aid),
+        "images": images,
         "spec_pairs": entry.parse_specs(p.specs), "imgerr": bool(imgerr),
-        "log": item_log(db, aid)})
+        "log": item_log(db, aid),
+        "og": _og(request, entry.display_name(to_dict(p)), blurb,
+                  images[0] if images else None)})
 
 
 @app.get("/parts/{aid}/edit", response_class=HTMLResponse, include_in_schema=False)

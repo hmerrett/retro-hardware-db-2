@@ -4,6 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Retro Hardware Database{% endblock %}</title>
+{# Social-media link preview (Open Graph + Twitter card). #}
+{% set _og = og | default(none) %}
+{% set _og_title = _og.title if _og else 'Retro Hardware Database' %}
+<meta property="og:site_name" content="Retro Hardware Database">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ _og_title }}">
+<meta name="twitter:title" content="{{ _og_title }}">
+{% if _og %}
+{% if _og.url %}<meta property="og:url" content="{{ _og.url }}">{% endif %}
+{% if _og.description %}<meta property="og:description" content="{{ _og.description }}">
+<meta name="twitter:description" content="{{ _og.description }}">{% endif %}
+{% if _og.image %}<meta property="og:image" content="{{ _og.image }}">
+<meta name="twitter:image" content="{{ _og.image }}">
+<meta name="twitter:card" content="summary_large_image">
+{% else %}<meta name="twitter:card" content="summary">{% endif %}
+{% else %}<meta name="twitter:card" content="summary">{% endif %}
 <style>
   :root {
     color-scheme: light dark;
