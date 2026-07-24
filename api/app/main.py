@@ -1041,6 +1041,26 @@ async def gui_save_part(aid: str, request: Request, db: Session = Depends(get_db
     return RedirectResponse(f"/parts/{aid}", status_code=303)
 
 
+# A duplicate is a second identical unit: copy every descriptive field and its
+# placement, but not the photos (they belong to the original unit) or the
+# disposed flag (the copy starts fresh).
+DUP_EXCLUDE = {"image", "disposed"}
+
+
+@app.post("/parts/{aid}/duplicate", include_in_schema=False)
+def gui_duplicate_part(aid: str, db: Session = Depends(get_db)):
+    src = get_or_404(db, Part, aid)
+    data = {k: getattr(src, k) for k in PART_FIELDS if k not in DUP_EXCLUDE}
+    obj = Part(asset_id=next_asset_id(db), **data)
+    db.add(obj)
+    db.flush()
+    sync_part_specs(db, obj)
+    add_log(db, obj.asset_id, f"created as a duplicate of {aid}", kind="created")
+    add_log(db, aid, f"duplicated to {obj.asset_id}", kind="duplicate")
+    db.commit()
+    return RedirectResponse(f"/parts/{obj.asset_id}", status_code=303)
+
+
 @app.post("/parts/{aid}/dispose", include_in_schema=False)
 async def gui_dispose_part(aid: str, request: Request, db: Session = Depends(get_db)):
     p = get_or_404(db, Part, aid)

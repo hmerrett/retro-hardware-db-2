@@ -9,6 +9,7 @@
   <span style="flex:1"></span>
   {% if request.state.authed %}
     <a class="btn sm" href="/parts/{{ p.asset_id }}/edit">edit</a>
+    <form class="inline-form" method="post" action="/parts/{{ p.asset_id }}/duplicate"><button class="btn sm" type="submit" title="Create a second identical part">duplicate</button></form>
     <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=1" target="_blank">small label</a>
     <a class="btn sm" href="/parts/{{ p.asset_id }}/label.pdf?small=0" target="_blank">full label</a>
   {% endif %}
