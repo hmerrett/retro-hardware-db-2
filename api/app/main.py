@@ -665,7 +665,9 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
             "updated": stamps(c.asset_id)[0], "added": stamps(c.asset_id)[1],
             "sub": f"{counts.get(c.asset_id, 0)} part(s)",
             "search": " ".join([c.asset_id, c.name or "", c.manufacturer or "",
-                                 c.model or "", c.os or "", c.cpu or ""]).lower(),
+                                 c.model or "", c.os or "", c.cpu or "",
+                                 c.chassis or "", c.installed_ram or "",
+                                 c.drives or ""]).lower(),
         })
     for p in parts:
         ptype = p.type or "other"
@@ -680,7 +682,8 @@ def gui_index(request: Request, db: Session = Depends(get_db)):
             "updated": stamps(p.asset_id)[0], "added": stamps(p.asset_id)[1],
             "sub": (p.computer_id if p.computer_id else "standalone"),
             "search": " ".join([p.asset_id, p.name or "", p.manufacturer or "",
-                                 p.model or "", p.specs or "", p.type or ""]).lower(),
+                                 p.model or "", p.specs or "", p.type or "",
+                                 entry.type_label(ptype)]).lower(),
         })
     cats = [("computer", "Computers")]
     present = {p.type or "other" for p in parts}
