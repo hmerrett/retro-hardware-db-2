@@ -7,8 +7,10 @@
 {# Social-media link preview (Open Graph + Twitter card). #}
 {% set _og = og | default(none) %}
 {% set _og_title = _og.title if _og else 'Retro Hardware Database' %}
+<meta name="theme-color" content="#2563eb">
 <meta property="og:site_name" content="Retro Hardware Database">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="en_GB">
 <meta property="og:title" content="{{ _og_title }}">
 <meta name="twitter:title" content="{{ _og_title }}">
 {% if _og %}
@@ -16,7 +18,11 @@
 {% if _og.description %}<meta property="og:description" content="{{ _og.description }}">
 <meta name="twitter:description" content="{{ _og.description }}">{% endif %}
 {% if _og.image %}<meta property="og:image" content="{{ _og.image }}">
+<meta property="og:image:alt" content="{{ _og.image_alt }}">
+{% if _og.image_w %}<meta property="og:image:width" content="{{ _og.image_w }}">
+<meta property="og:image:height" content="{{ _og.image_h }}">{% endif %}
 <meta name="twitter:image" content="{{ _og.image }}">
+<meta name="twitter:image:alt" content="{{ _og.image_alt }}">
 <meta name="twitter:card" content="summary_large_image">
 {% else %}<meta name="twitter:card" content="summary">{% endif %}
 {% else %}<meta name="twitter:card" content="summary">{% endif %}

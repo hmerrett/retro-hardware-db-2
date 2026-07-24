@@ -97,12 +97,27 @@ def _dot(*parts) -> str:
     return " · ".join(str(p) for p in parts if p)
 
 
+def _image_size(image_rel: str):
+    """(width, height) of a stored image, or None. Lets link previews (Discord
+    especially) render the large image immediately without a probe fetch."""
+    try:
+        from PIL import Image
+        with Image.open(IMAGES_DIR / image_rel) as im:
+            return im.size
+    except Exception:
+        return None
+
+
 def _og(request: Request, title: str, description: str = "", image_rel: str = None):
     """Open Graph / Twitter-card context for a page's social-share preview."""
     og = {"title": title, "url": _abs_url(request, request.url.path),
           "description": " ".join((description or "").split())[:280]}
     if image_rel:
         og["image"] = _abs_url(request, f"/images/{image_rel}")
+        og["image_alt"] = title
+        size = _image_size(image_rel)
+        if size:
+            og["image_w"], og["image_h"] = size
     return og
 
 # Signed-cookie session for the browser (the API/tools keep using HTTP Basic).
