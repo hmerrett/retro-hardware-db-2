@@ -318,16 +318,29 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+def _icon_ver():
+    """Short hash of the current favicon, appended to icon URLs so a regenerated
+    set busts the browser's (very sticky) favicon cache."""
+    try:
+        return hashlib.md5((STATIC_DIR / "favicon.ico").read_bytes()).hexdigest()[:8]
+    except OSError:
+        return "1"
+
+
+templates.env.globals["icon_ver"] = _icon_ver()
+_ICON_CACHE = {"Cache-Control": "public, max-age=86400"}
+
+
 # Browsers and crawlers request these at the domain root regardless of markup.
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
-    return FileResponse(STATIC_DIR / "favicon.ico")
+    return FileResponse(STATIC_DIR / "favicon.ico", headers=_ICON_CACHE)
 
 
 @app.get("/apple-touch-icon.png", include_in_schema=False)
 @app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
 def apple_touch_icon():
-    return FileResponse(STATIC_DIR / "apple-touch-icon.png")
+    return FileResponse(STATIC_DIR / "apple-touch-icon.png", headers=_ICON_CACHE)
 
 
 for sub in ("computers", "parts"):
